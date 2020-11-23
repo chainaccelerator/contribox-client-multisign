@@ -5,7 +5,7 @@ from .new_multisig_address import new_multisig_address
 from .new_confidential_address import new_confidential_address
 from .hash_contract import hash_contract 
 from .verify_contract_commitment import verify_contract_commitment 
-#from .create_enrollment_demand_tx import create_enrollment_demand_tx
+from .create_enrollment_demand_tx import create_enrollment_demand_tx
 from .start_aes_session import start_aes_session
 from .encrypt_msg_for_session import encrypt_msg_for_session
 from .decrypt_msg_for_session import decrypt_msg_for_session

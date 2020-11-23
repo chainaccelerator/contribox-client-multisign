@@ -29,6 +29,7 @@ from contribox_proto.util import (
 SALT_LEN = 32
 HMAC_COST = 2048
 NETWORK_LIQUID_REGTEST = 0x04
+FINGERPRINT = "ce9e7a9b" # we hardcode the fingerprint for some methods. In production we will use something different to store keys
 
 def generate_entropy_from_password(password):
     """we can generate entropy from some password. A salt is generated randomly and then discarded.
@@ -558,15 +559,158 @@ def unblind_tx_outputs(chain, tx_hex):
     if len(vouts) == 0:
         print("It seems there's no output we control here")
 
-    print(f"asset_generator is {asset_generators}")
-    
     return asset_generators, clear_asset_ids, clear_values, abfs, vbfs, script_pubkeys, vouts
 
-def start_aes_session(pubkey):
-    # verify that the pubkey is valid for secp256k1
-    #if not wally.ec_public_key_verify(pubkey_bin):
-    #    raise exceptions.UnexpectedValueError("pubkey is not on the secp256k1 curve")
 
+def create_tx(chain, prev_tx, my_asset, template_address, my_address):
+    """
+    This call is made by a member of some template on the behalf of the others and/or a new member that will be enrolled
+    or added to the template.
+    The script is provided by the new member that is not included in the template yet.
+    It is a P2WSH, which means that it is a hash of the whole script. The preimage of this hash ("redeem script")
+    must have been provided with the P2WSH address, and when we must check that it matches before calling this.
+    Prev_tx and prev_out are an UTXO that belongs to the caller. Amount is the amount locked in this UTXO.
+    Asset is the asset of the spent UTXO. It is the token that was issued when the caller was himself enrolled
+    We will create a new transactions with 2 outputs:
+    - an output locked by the script provided, with a new asset
+    - another returning the caller's UTXO to his own address
+    We will also create a new asset issuance and hook it on the input.
+    Finally we will blind everything with a key pairs we will generate and share with all the participants via a side channel.
+    """
+    # we unblind the previous tx and extract the information we need about the output we spend
+    asset_generators, clear_asset_ids, clear_values, abfs, vbfs, script_pubkeys, vouts = unblind_tx_outputs(chain, prev_tx)
+
+    # start-define_outputs
+    total_in = sum(clear_values)
+    output_values = [round(total_in/2), round(total_in/2)]
+    confidential_output_addresses = [my_address, template_address]
+    output_asset_id = wally.hex_to_bytes(my_asset)[::-1]
+    # end-define_outputs
+
+    # start-blinding_factors
+    num_inputs = len(vouts)
+    num_outputs = len(confidential_output_addresses)
+    abfs_in = b''
+    vbfs_in = b''
+    asset_in = b''
+    asset_generator_in = b''
+    for abf in abfs:
+        abfs_in += bytes(abf)
+    for vbf in vbfs:
+        vbfs_in += bytes(vbf)
+    for asset in clear_asset_ids:
+        asset_in += asset
+    for asset_generator in asset_generators:
+        asset_generator_in += asset_generator
+    abfs_out = urandom(32 * num_outputs)
+    vbfs_out = urandom(32 * (num_outputs - 1))
+    final_vbf = wally.asset_final_vbf(
+        clear_values + output_values,
+        num_inputs,
+        abfs_in + abfs_out,
+        vbfs_in + vbfs_out)
+    vbfs_out += final_vbf
+    # end-blinding_factors
+
+    # start-decompose_address
+    blinding_pubkeys = [
+        wally.confidential_addr_segwit_to_ec_public_key(
+            confidential_address, CA_PREFIXES.get(chain))
+        for confidential_address in confidential_output_addresses]
+
+    non_confidential_addresses = [
+        wally.confidential_addr_to_addr_segwit(
+            confidential_address, CA_PREFIXES.get(chain), PREFIXES.get(chain))
+        for confidential_address in confidential_output_addresses]
+
+    script_pubkeys = [
+        wally.addr_segwit_to_bytes(
+            non_confidential_address, PREFIXES.get(chain), 0)
+        for non_confidential_address in non_confidential_addresses]
+    # end-decompose_address
+
+    # we create a new, empty transaction
+    new_tx = wally.tx_init(2, 0, 0, 0)
+
+    for value, blinding_pubkey, script_pubkey in zip(
+            output_values, blinding_pubkeys, script_pubkeys):
+
+        abf, abfs_out = abfs_out[:32], abfs_out[32:]
+        vbf, vbfs_out = vbfs_out[:32], vbfs_out[32:]
+
+        generator = wally.asset_generator_from_bytes(output_asset_id, abf)
+
+        value_commitment = wally.asset_value_commitment(
+            value, vbf, generator)
+
+        ephemeral_privkey = urandom(32)
+        ephemeral_pubkey = wally.ec_public_key_from_private_key(
+            ephemeral_privkey)
+
+        rangeproof = wally.asset_rangeproof(
+            value,
+            blinding_pubkey,
+            ephemeral_privkey,
+            output_asset_id,
+            abf,
+            vbf,
+            value_commitment,
+            script_pubkey,
+            generator,
+            1, # min_value
+            0, # exponent
+            36 # bits
+        )
+
+        print(f"abf is {abf.hex()}")
+        print(f"generator is {generator.hex()}")
+        print(f"clear_asset_ids is {asset_in.hex()}")
+        print(f"abfs_in is {abfs_in.hex()}")
+        print(f"asset_generators is {asset_generator_in.hex()}")
+        surjectionproof = wally.asset_surjectionproof(
+            output_asset_id,
+            abf,
+            generator,
+            urandom(32),
+            asset_in,
+            abfs_in,
+            asset_generator_in
+        )
+
+        wally.tx_add_elements_raw_output(
+            new_tx,
+            script_pubkey,
+            generator,
+            value_commitment,
+            ephemeral_pubkey,
+            surjectionproof,
+            rangeproof,
+            0
+        )
+
+    tx = wally.tx_from_hex(
+        prev_tx,
+        wally.WALLY_TX_FLAG_USE_ELEMENTS | wally.WALLY_TX_FLAG_USE_WITNESS)
+    prev_txid = wally.tx_get_txid(tx)
+    wally.tx_add_elements_raw_input(
+        new_tx,
+        prev_txid,
+        vouts[0],
+        0xffffffff,
+        None, # scriptSig
+        None, # witness
+        None, # nonce
+        None, # entropy
+        None, # issuance amount
+        None, # inflation keys
+        None, # issuance amount rangeproof
+        None, # inflation keys rangeproof
+        None, # pegin witness
+        0)
+
+    return wally.tx_to_hex(new_tx, wally.WALLY_TX_FLAG_USE_WITNESS)
+
+def start_aes_session(pubkey):
     # we generate a random key pair
     ephemeral_privkey = urandom(32) # random, but could also derive it determinastically from a secret and their pubkey
     ephemeral_pubkey = wally.ec_public_key_from_private_key(ephemeral_privkey)
