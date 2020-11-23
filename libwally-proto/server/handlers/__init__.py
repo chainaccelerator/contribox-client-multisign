@@ -10,3 +10,4 @@ from .start_aes_session import start_aes_session
 from .encrypt_msg_for_session import encrypt_msg_for_session
 from .decrypt_msg_for_session import decrypt_msg_for_session
 from .sign_tx import sign_tx
+from .unblind_tx_outputs import unblind_tx_outputs

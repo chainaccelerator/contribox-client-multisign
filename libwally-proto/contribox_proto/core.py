@@ -132,20 +132,10 @@ def get_pubkey_from_xpub(xpub: str, derivation_path: str):
     last = lpath.pop()
     current = wally.bip32_key_from_base58(xpub)
     for path in lpath:
-        print(f"current is {current}, path is {path}\n")
         child = wally.bip32_key_from_parent(current, path, wally.BIP32_FLAG_KEY_PUBLIC)
         current = child
     return wally.bip32_key_from_parent(current, last, wally.BIP32_FLAG_KEY_PUBLIC)
     
-def get_address_from_xpub(xpub: str, derivation_path: str):
-    lpath = parse_path(derivation_path)
-    last = lpath.pop()
-    current = wally.bip32_key_from_base58(xpub)
-    for path in lpath:
-        child = wally.bip32_key_from_parent(current, path, wally.BIP32_FLAG_KEY_PUBLIC)
-        current = child
-    return wally.bip32_key_from_parent(current, last, wally.BIP32_FLAG_KEY_PUBLIC)
-
 def get_child_from_path(chain, fingerprint, derivation_path, dir=KEYS_DIR):
     masterkey = get_masterkey_from_disk(chain, fingerprint, False, dir)
     lpath = parse_path(derivation_path)
@@ -370,17 +360,6 @@ def sign_tx(chain, tx, fingerprints, paths, values, dir=KEYS_DIR):
 
     return wally.tx_to_hex(Tx, wally.WALLY_TX_FLAG_USE_WITNESS) 
 
-def add_script_to_tx(chain, tx, amount, script):
-    script_bin = bytes.fromhex(script)
-
-    if chain in ['bitcoin-main', 'bitcoin-test', 'bitcoin-regtest']: 
-        Tx = wally.tx_from_hex(tx, wally.WALLY_TX_FLAG_USE_WITNESS) 
-    else: 
-        Tx = wally.tx_from_hex(tx, wally.WALLY_TX_FLAG_USE_WITNESS | wally.WALLY_TX_FLAG_USE_ELEMENTS)
-
-    wally.tx_add_raw_output(Tx, int(amount), script_bin, 0)
-
-    return wally.tx_to_hex(Tx, wally.WALLY_TX_FLAG_USE_WITNESS)
 
 def hash_contract(contract):
     if is_json(contract) == True:
@@ -515,6 +494,73 @@ def update_tx_with_input(chain, enrollment_tx, utxo):
         0)
 
     return wally.tx_to_hex(enrollment_tx, wally.WALLY_TX_FLAG_USE_WITNESS)
+
+def unblind_tx_outputs(chain, tx_hex):
+    print("entering unblind_tx_outputs")
+    tx = wally.tx_from_hex(
+        tx_hex,
+        wally.WALLY_TX_FLAG_USE_ELEMENTS | wally.WALLY_TX_FLAG_USE_WITNESS)
+
+    asset_generators = []
+    clear_asset_ids = []
+    clear_values = []
+    abfs = []
+    vbfs = []
+    script_pubkeys = []
+    vouts = []
+
+    # First retrieve the master blinding key from disk
+    masterkey = get_masterkey_from_disk(chain, FINGERPRINT, True)
+
+    num_outputs = wally.tx_get_num_outputs(tx)
+    for vout in range(num_outputs):
+        print(f"unblinding output {vout}")
+        # First we extract the script_pubkey from the output
+        script_pubkey = wally.tx_get_output_script(tx, vout)
+        # Next we compute the blinding key pair for the address
+        if script_pubkey == b'':
+            print(f"output {vout} has no scriptpubkey")
+            continue # no scriptPubkey, this output is probably fees
+        print(f"script_pubkey of the tx is {script_pubkey.hex()}")
+        private_blinding_key = wally.asset_blinding_key_to_ec_private_key(masterkey, script_pubkey)
+        public_blinding_key = wally.ec_public_key_from_private_key(private_blinding_key)
+        print(f"public blinding key derived from this script_pubkey is {public_blinding_key.hex()}")
+        # Check that the pubkey is the same than the one we extract from the output
+        sender_ephemeral_pubkey = wally.tx_get_output_nonce(tx, vout)
+
+        rangeproof = wally.tx_get_output_rangeproof(tx, vout)
+        asset_id = wally.tx_get_output_asset(tx, vout)
+        value_commitment = wally.tx_get_output_value(tx, vout)
+
+
+        try:
+            clear_value, clear_asset, abf, vbf = wally.asset_unblind(
+            sender_ephemeral_pubkey,
+            private_blinding_key,
+            rangeproof,
+            value_commitment,
+            script_pubkey,
+            asset_id)
+        except ValueError:
+            print(f"can't unblind outout {vout}")
+            continue
+
+        vouts.append(vout)
+        script_pubkeys.append(script_pubkey)
+        asset_generator = wally.asset_generator_from_bytes(clear_asset, abf)
+
+        asset_generators.append(asset_generator)
+        clear_asset_ids.append(clear_asset)
+        clear_values.append(clear_value)
+        abfs.append(abf)
+        vbfs.append(vbf)
+
+    if len(vouts) == 0:
+        print("It seems there's no output we control here")
+
+    print(f"asset_generator is {asset_generators}")
+    
+    return asset_generators, clear_asset_ids, clear_values, abfs, vbfs, script_pubkeys, vouts
 
 def start_aes_session(pubkey):
     # verify that the pubkey is valid for secp256k1
