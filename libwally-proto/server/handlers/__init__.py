@@ -1,5 +1,6 @@
 from .new_master import new_master
 from .new_address import new_address
+from .search_path_for_address import search_path_for_address
 from .new_multisig_address import new_multisig_address
 from .new_confidential_address import new_confidential_address
 from .hash_contract import hash_contract 

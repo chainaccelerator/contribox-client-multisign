@@ -602,3 +602,15 @@ def get_confidential_address_from_addr(chain, address, master_blinding_key):
                                                     CA_PREFIXES.get(chain), 
                                                     blinding_pubkey
                                                     )
+
+def search_path_for_address(chain, xpub, target, path, index, end):
+    i = start = int(index)
+    end = int(end)
+    for i in range(start, end):
+        full_path = path + '/' + str(i)
+        address, _ = get_address_from_xpub(chain, xpub, full_path)
+        print(f"derived {address} from {full_path}")
+        if address == target:
+            return full_path
+        
+    return "Can't find address"
