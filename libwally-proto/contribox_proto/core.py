@@ -29,6 +29,11 @@ from contribox_proto.util import (
 SALT_LEN = 32
 HMAC_COST = 2048
 NETWORK_LIQUID_REGTEST = 0x04
+ISSUANCE_VIN = 0
+ISSUANCE_AMT = 1
+ISSUANCE_DEFAULT_CONTRACT_HASH = bytearray(b'\x00'*32)
+TOKEN_AMT = 0
+ISSUANCE_NONCE = bytearray(b'\x00'*32)
 FINGERPRINT = "ce9e7a9b" # we hardcode the fingerprint for some methods. In production we will use something different to store keys
 
 def generate_entropy_from_password(password):
@@ -368,19 +373,20 @@ def hash_contract(contract):
         to_hash = json.dumps(json_dict)
     else:
         to_hash = contract
-    contract_hash = wally.sha256(to_hash.encode('ascii'))
-    reversed_bytes = reverse_bytes(contract_hash)
-    return reversed_bytes.hex()
+    return wally.sha256(to_hash.encode('ascii'))
+
+def get_asset_id(txid, vout, contract_hash):
+    entropy = wally.tx_elements_issuance_generate_entropy(txid, int(vout), contract_hash)
+    asset = wally.tx_elements_issuance_calculate_asset(entropy)
+
+    return entropy, asset
 
 def verify_contract_commitment(chain, txid, vout, contract, asset_id):
     contract_hash = hash_contract(contract)
 
-    reversed_contract_hash = reverse_bytes(bytes.fromhex(contract_hash))
+    _, asset = get_asset_id(txid, vout, reversed_contract_hash)
 
-    entropy = wally.tx_elements_issuance_generate_entropy(wally.hex_to_bytes(txid)[::-1], int(vout), reversed_contract_hash)
-    asset = wally.tx_elements_issuance_calculate_asset(entropy)[::-1]
-
-    if wally.hex_from_bytes(asset) == asset_id:
+    if wally.hex_from_bytes(asset[::-1]) == asset_id:
         return True
 
     return False
@@ -411,93 +417,7 @@ def new_multisig_address(chain, n, m, xpubs, paths):
     address = wally.addr_segwit_from_bytes(script_pubkey, PREFIXES.get(chain), 0)
     return address, wally.hex_from_bytes(redeem_script)
 
-def new_tx_with_output(chain, amount, asset, script):
-    if '.' in amount:
-        raise exceptions.UnexpectedValueError("amount must be in satoshis.")
-    
-    try:
-        script_bin = wally.hex_to_bytes(script)
-    except ValueError:
-        raise exceptions.UnexpectedValueError("Script is not a valid hexstring")
-    
-    try:
-        asset_bin = wally.hex_to_bytes(asset)
-    except ValueError:
-        raise exceptions.UnexpectedValueError("Provided asset ID is not an hexstring")
-    if len(asset_bin) is not 32:
-        raise exceptions.UnexpectedValueError("asset ID must be 32B long.")
-    
-    value = wally.tx_confidential_value_from_satoshi(int(amount))
-    fee_value = wally.tx_confidential_value_from_satoshi(0)
-
-    new_tx = wally.tx_init(2, 0, 0, 0)
-
-    output = wally.tx_elements_output_init(
-        script_bin, 
-        bytearray([0x01]) + asset_bin, 
-        value,
-        None, 
-        None, 
-        None)
-
-    fee_output = wally.tx_elements_output_init(
-        None, 
-        bytearray([0x01]) + asset_bin, 
-        fee_value,
-        None, 
-        None, 
-        None)
-
-    wally.tx_add_output(new_tx, output)
-    wally.tx_add_output(new_tx, fee_output)
-    
-   # wally.tx_add_elements_raw_output(
-   #     new_tx, 
-   #     script_bin, 
-   #     bytearray([0x01]) + asset_bin, 
-   #     value, 
-   #     None, 
-   #     None, 
-   #     None, 
-   #     0)
-
-    return new_tx 
-
-def update_tx_with_input(chain, enrollment_tx, utxo):
-    if len(utxo.split(':')) != 2:
-        raise exceptions.UnexpectedValueError("utxo must be in txid:vout format")
-    prev_id, prev_out = utxo.split(':')
-
-    try:
-        prev_id_bin = wally.hex_to_bytes(prev_id)
-    except ValueError:
-        raise exceptions.UnexpectedValueError("Provided tx ID is not an hexstring")
-    if len(prev_id_bin) is not 32:
-        raise exceptions.UnexpectedValueError("tx ID must be 32B long.")
-
-    if '.' in prev_out or int(prev_out) < 0:
-        raise exceptions.UnexpectedValueError("prev_out must be a positive integer")
-    
-    wally.tx_add_elements_raw_input(
-        enrollment_tx,
-        prev_id_bin,
-        int(prev_out),
-        0xffffffff,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        0)
-
-    return wally.tx_to_hex(enrollment_tx, wally.WALLY_TX_FLAG_USE_WITNESS)
-
 def unblind_tx_outputs(chain, tx_hex):
-    print("entering unblind_tx_outputs")
     tx = wally.tx_from_hex(
         tx_hex,
         wally.WALLY_TX_FLAG_USE_ELEMENTS | wally.WALLY_TX_FLAG_USE_WITNESS)
@@ -515,17 +435,13 @@ def unblind_tx_outputs(chain, tx_hex):
 
     num_outputs = wally.tx_get_num_outputs(tx)
     for vout in range(num_outputs):
-        print(f"unblinding output {vout}")
         # First we extract the script_pubkey from the output
         script_pubkey = wally.tx_get_output_script(tx, vout)
         # Next we compute the blinding key pair for the address
         if script_pubkey == b'':
-            print(f"output {vout} has no scriptpubkey")
             continue # no scriptPubkey, this output is probably fees
-        print(f"script_pubkey of the tx is {script_pubkey.hex()}")
         private_blinding_key = wally.asset_blinding_key_to_ec_private_key(masterkey, script_pubkey)
         public_blinding_key = wally.ec_public_key_from_private_key(private_blinding_key)
-        print(f"public blinding key derived from this script_pubkey is {public_blinding_key.hex()}")
         # Check that the pubkey is the same than the one we extract from the output
         sender_ephemeral_pubkey = wally.tx_get_output_nonce(tx, vout)
 
@@ -543,7 +459,6 @@ def unblind_tx_outputs(chain, tx_hex):
             script_pubkey,
             asset_id)
         except ValueError:
-            print(f"can't unblind outout {vout}")
             continue
 
         vouts.append(vout)
@@ -556,21 +471,17 @@ def unblind_tx_outputs(chain, tx_hex):
         abfs.append(abf)
         vbfs.append(vbf)
 
-    if len(vouts) == 0:
-        print("It seems there's no output we control here")
-
     return asset_generators, clear_asset_ids, clear_values, abfs, vbfs, script_pubkeys, vouts
 
-
-def create_tx(chain, prev_tx, my_asset, template_address, my_address):
+def create_tx(chain, prev_tx, my_asset, template_address, my_address, contract_hash):
     """
     This call is made by a member of some template on the behalf of the others and/or a new member that will be enrolled
     or added to the template.
     The script is provided by the new member that is not included in the template yet.
     It is a P2WSH, which means that it is a hash of the whole script. The preimage of this hash ("redeem script")
     must have been provided with the P2WSH address, and when we must check that it matches before calling this.
-    Prev_tx and prev_out are an UTXO that belongs to the caller. Amount is the amount locked in this UTXO.
-    Asset is the asset of the spent UTXO. It is the token that was issued when the caller was himself enrolled
+    Prev_tx is a transaction where at least one output is controlled by the caller.
+    my_asset is the asset of the spent UTXO. It is the token that was issued when the caller was himself enrolled
     We will create a new transactions with 2 outputs:
     - an output locked by the script provided, with a new asset
     - another returning the caller's UTXO to his own address
@@ -580,20 +491,45 @@ def create_tx(chain, prev_tx, my_asset, template_address, my_address):
     # we unblind the previous tx and extract the information we need about the output we spend
     asset_generators, clear_asset_ids, clear_values, abfs, vbfs, script_pubkeys, vouts = unblind_tx_outputs(chain, prev_tx)
 
+    tx = wally.tx_from_hex(
+        prev_tx,
+        wally.WALLY_TX_FLAG_USE_ELEMENTS | wally.WALLY_TX_FLAG_USE_WITNESS)
+    prev_txid = wally.tx_get_txid(tx)
+
+    # get the asset ID of the new asset
+    entropy, new_asset = get_asset_id(prev_txid, vouts[0], reverse_bytes(bytes.fromhex(contract_hash)))
+    token_id = wally.tx_elements_issuance_calculate_reissuance_token(entropy, wally.WALLY_TX_FLAG_BLINDED_INITIAL_ISSUANCE)
+
+    # map asset to amount in prev_tx outputs that have been unblinded
+    prevout = -1
+    total_in = 0
+    for i, asset in enumerate(clear_asset_ids):
+        if asset[::-1].hex() == my_asset:
+            prevout = vouts[i]
+            total_in = clear_values[i]
+            break
+        
+    if prevout == -1 or total_in == 0:
+        raise exceptions.UnexpectedValueError(f"No output for asset {my_asset} in tx {prev_txid[::-1].hex()}")
+
+    # we create a new, empty transaction
+    new_tx = wally.tx_init(2, 0, 0, 0)
+
     # start-define_outputs
-    total_in = sum(clear_values)
-    output_values = [round(total_in/2), round(total_in/2)]
+    output_values = [total_in, ISSUANCE_AMT]
     confidential_output_addresses = [my_address, template_address]
-    output_asset_id = wally.hex_to_bytes(my_asset)[::-1]
+    output_assets = [wally.hex_to_bytes(my_asset)[::-1], new_asset]
     # end-define_outputs
 
     # start-blinding_factors
-    num_inputs = len(vouts)
+    num_inputs = 1
     num_outputs = len(confidential_output_addresses)
+
     abfs_in = b''
     vbfs_in = b''
     asset_in = b''
     asset_generator_in = b''
+
     for abf in abfs:
         abfs_in += bytes(abf)
     for vbf in vbfs:
@@ -602,14 +538,14 @@ def create_tx(chain, prev_tx, my_asset, template_address, my_address):
         asset_in += asset
     for asset_generator in asset_generators:
         asset_generator_in += asset_generator
+
     abfs_out = urandom(32 * num_outputs)
     vbfs_out = urandom(32 * (num_outputs - 1))
-    final_vbf = wally.asset_final_vbf(
+    vbfs_out += wally.asset_final_vbf(
         clear_values + output_values,
         num_inputs,
         abfs_in + abfs_out,
         vbfs_in + vbfs_out)
-    vbfs_out += final_vbf
     # end-blinding_factors
 
     # start-decompose_address
@@ -629,16 +565,15 @@ def create_tx(chain, prev_tx, my_asset, template_address, my_address):
         for non_confidential_address in non_confidential_addresses]
     # end-decompose_address
 
-    # we create a new, empty transaction
-    new_tx = wally.tx_init(2, 0, 0, 0)
-
-    for value, blinding_pubkey, script_pubkey in zip(
-            output_values, blinding_pubkeys, script_pubkeys):
-
+    for value, blinding_pubkey, script_pubkey, asset in zip(
+            output_values, blinding_pubkeys, script_pubkeys, output_assets):
+        
         abf, abfs_out = abfs_out[:32], abfs_out[32:]
         vbf, vbfs_out = vbfs_out[:32], vbfs_out[32:]
 
-        generator = wally.asset_generator_from_bytes(output_asset_id, abf)
+        generator = wally.asset_generator_from_bytes(asset, abf)
+
+        asset_in = asset
 
         value_commitment = wally.asset_value_commitment(
             value, vbf, generator)
@@ -651,7 +586,7 @@ def create_tx(chain, prev_tx, my_asset, template_address, my_address):
             value,
             blinding_pubkey,
             ephemeral_privkey,
-            output_asset_id,
+            asset,
             abf,
             vbf,
             value_commitment,
@@ -662,13 +597,8 @@ def create_tx(chain, prev_tx, my_asset, template_address, my_address):
             36 # bits
         )
 
-        print(f"abf is {abf.hex()}")
-        print(f"generator is {generator.hex()}")
-        print(f"clear_asset_ids is {asset_in.hex()}")
-        print(f"abfs_in is {abfs_in.hex()}")
-        print(f"asset_generators is {asset_generator_in.hex()}")
         surjectionproof = wally.asset_surjectionproof(
-            output_asset_id,
+            asset,
             abf,
             generator,
             urandom(32),
@@ -688,26 +618,23 @@ def create_tx(chain, prev_tx, my_asset, template_address, my_address):
             0
         )
 
-    tx = wally.tx_from_hex(
-        prev_tx,
-        wally.WALLY_TX_FLAG_USE_ELEMENTS | wally.WALLY_TX_FLAG_USE_WITNESS)
-    prev_txid = wally.tx_get_txid(tx)
-    wally.tx_add_elements_raw_input(
-        new_tx,
-        prev_txid,
-        vouts[0],
-        0xffffffff,
-        None, # scriptSig
-        None, # witness
-        None, # nonce
-        None, # entropy
-        None, # issuance amount
-        None, # inflation keys
-        None, # issuance amount rangeproof
-        None, # inflation keys rangeproof
-        None, # pegin witness
-        0)
+        if asset == new_asset:
+            tx_in = wally.tx_elements_input_init(
+                prev_txid,
+                prevout,
+                0xffffffff,
+                None, # scriptSig
+                None, # witness
+                ISSUANCE_NONCE, # nonce
+                entropy, # entropy
+                value_commitment, # issuance amount (blinded)
+                None, # inflation keys, token amount (blinded)
+                rangeproof, # issuance amount rangeproof
+                None, # inflation keys rangeproof
+                None, # pegin witness
+            )
 
+    wally.tx_add_input_at(new_tx, ISSUANCE_VIN, tx_in)
     return wally.tx_to_hex(new_tx, wally.WALLY_TX_FLAG_USE_WITNESS)
 
 def start_aes_session(pubkey):
