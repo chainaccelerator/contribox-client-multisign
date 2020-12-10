@@ -32,7 +32,7 @@ export XPUB="tpubD6NzVbkrYhZ4WbScGMjFV1RFPh7W6xUZZDzx1Zt5YZyVem4Zoqws3kB79PVhCrm
 curl -i -X POST -H "Content-Type: application/json" -d '{
         "jsonrpc": "2.0",
         "method": "new_address",
-        "params": ["'"$CHAIN"'", "'"$XPUB"'", "'"$HD_PATH"'"],
+        "params": ["'"$XPUB"'", "'"$HD_PATH"'"],
         "id": "42"
     }' $SSM_ENDPOINT
 ```

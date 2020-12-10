@@ -652,15 +652,15 @@ def decrypt_msg_for_session(msg, session_id, iv):
     # return decrypted msg
     return clear_text.decode('utf-8')
 
-def get_address_from_xpub(chain, xpub, path):
+def get_address_from_xpub(xpub, hd_path):
     # derive the hdkey from the xpub
-    child = get_pubkey_from_xpub(xpub, path)
+    child = get_pubkey_from_xpub(xpub, hd_path)
 
     # get the pubkey
     pubkey = wally.bip32_key_get_pub_key(child)
 
     # get the bech32 address
-    address = wally.bip32_key_to_addr_segwit(child, PREFIXES.get(chain), 0)
+    address = wally.bip32_key_to_addr_segwit(child, PREFIXES.get(CHAIN), 0)
 
     return address, str(pubkey.hex())
 
