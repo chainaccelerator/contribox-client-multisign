@@ -664,19 +664,19 @@ def get_address_from_xpub(xpub, hd_path):
 
     return address, str(pubkey.hex())
 
-def get_confidential_address_from_addr(chain, address, master_blinding_key):
+def get_confidential_address_from_addr(address, master_blinding_key):
     # derive the blinding key pairs
     masterkey = bytes.fromhex(master_blinding_key)
-    script_pubkey = wally.addr_segwit_to_bytes(address, PREFIXES.get(chain), 0)
+    script_pubkey = wally.addr_segwit_to_bytes(address, PREFIXES.get(CHAIN), 0)
     private_blinding_key = wally.asset_blinding_key_to_ec_private_key(masterkey, script_pubkey)
     blinding_pubkey = wally.ec_public_key_from_private_key(private_blinding_key)
 
     # create a confidential address 
     return wally.confidential_addr_from_addr_segwit(address, 
-                                                    PREFIXES.get(chain),
-                                                    CA_PREFIXES.get(chain), 
+                                                    PREFIXES.get(CHAIN),
+                                                    CA_PREFIXES.get(CHAIN), 
                                                     blinding_pubkey
-                                                    )
+                                                    ), private_blinding_key
 
 def search_path_for_address(chain, xpub, target, path, index, end):
     i = start = int(index)

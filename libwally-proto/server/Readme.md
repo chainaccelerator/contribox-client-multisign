@@ -72,7 +72,7 @@ export MASTER_BKEY="abcfee8af72caa34739e825c946efbbdc445f02625f2c99cc27047b2ac4d
 curl -i -X POST -H "Content-Type: application/json" -d '{
         "jsonrpc": "2.0",
         "method": "new_confidential_address",
-        "params": ["'"$CHAIN"'", "'"$ADDRESS"'", "'"$MASTER_BKEY"'"],
+        "params": ["'"$ADDRESS"'", "'"$MASTER_BKEY"'"],
         "id": "42"
     }' $SSM_ENDPOINT
 ```
