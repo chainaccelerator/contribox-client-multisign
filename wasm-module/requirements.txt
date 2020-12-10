@@ -1,0 +1,5 @@
+setuptools
+pytest
+Flask
+Flask-JSONRPC
+Click==7.0
