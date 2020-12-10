@@ -80,16 +80,15 @@ From this key it is possible to derivate a virtually unlimited number of new key
 ### Inputs
 
 1. int `threshold`: the minimum number of signatures required out of the total number of pubkeys to produce a valid transaction.
-2. int `total_signers`: the total number of signers. Must be more or equal to `threshold`
-3. string `pubkeys`: all the pubkeys used in the multisig, space separated.
-4. string `hd_paths`: all the derivation paths, space separated, there must be as many paths than pubeys.
+2. string `pubkeys`: all the pubkeys used in the multisig, space separated.
+3. string `hd_paths`: all the derivation paths, space separated, there must be as many paths than pubeys.
 
 ### Outputs
 
 1. string `redeem_script`: a hex encoded byte string of the resulting bitcoin script.
 2. string `address`: a bech32 address commiting to the `redeem_script`.
 
-**Note**: those multisig adresses are unblinded, and must be blinded with `new_confidential` address. But since the address is shared amongst _n_ participants, they all need the blinding keys. Any user in the multisig could use his own master blinding key to create a confidential transaction, but should then share the key with all the other participants.
+**Note**: those multisig adresses are unblinded, and must be blinded with `new_confidential_address`. But since the address is shared amongst _n_ participants, they all need the blinding keys. Any user in the multisig could use his own master blinding key to create a confidential transaction, but should then share the key with all the other participants.
 
 ## create_tx
 

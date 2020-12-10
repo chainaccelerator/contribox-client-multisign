@@ -59,7 +59,7 @@ export HD_PATH="84/0/1 84/0/1"
 curl -i -X POST -H "Content-Type: application/json" -d '{
         "jsonrpc": "2.0",
         "method": "new_multisig_address",
-        "params": ["'"$CHAIN"'", 2, 2, "'"$XPUB"'", "'"$HD_PATH"'"],
+        "params": [2, "'"$XPUB"'", "'"$HD_PATH"'"],
         "id": "42"
     }' $SSM_ENDPOINT
 ```

@@ -349,30 +349,30 @@ def verify_contract_commitment(chain, txid, vout, contract, asset_id):
 
     return False
 
-def new_multisig_address(chain, n, m, xpubs, paths):
-    threshold = int(n)
-    total_pubkeys = int(m)
-    if threshold <= 0 or threshold > total_pubkeys:
-        raise exceptions.UnexpectedValueError("threshold must be comprised between 1 and the total number of signers")
+def new_multisig_address(threshold, xpubs, paths):
+    # threshold = int(n)
+    # total_pubkeys = int(m)
     xpubs_list = xpubs.split()
     paths_list = paths.split()
-    if len(xpubs_list) != len(paths_list) or len(xpubs_list) != total_pubkeys:
+    if threshold <= 0 or threshold > len(xpubs_list):
+        raise exceptions.UnexpectedValueError("threshold must be comprised between 1 and the total number of signers")
+    if len(xpubs_list) != len(paths_list):
         raise exceptions.UnexpectedValueError("Must provide as many xpubs and paths as signers")
 
     pubkeys_bin = bytes("", 'ascii')
 
     # concatenate all the pubkeys in bytes form
-    for i in range(total_pubkeys):
+    for i in range(len(xpubs_list)):
         child = get_pubkey_from_xpub(xpubs_list[i], paths_list[i])
         pubkey = wally.bip32_key_get_pub_key(child)
         pubkeys_bin = pubkeys_bin + pubkey
 
     # generate the scriptpubkey
-    redeem_script = wally.scriptpubkey_multisig_from_bytes(pubkeys_bin, int(threshold), 0)
+    redeem_script = wally.scriptpubkey_multisig_from_bytes(pubkeys_bin, threshold, 0)
     script_hash = wally.sha256(redeem_script)
     script_pubkey = bytearray([0x0, 0x20]) + script_hash
 
-    address = wally.addr_segwit_from_bytes(script_pubkey, PREFIXES.get(chain), 0)
+    address = wally.addr_segwit_from_bytes(script_pubkey, PREFIXES.get(CHAIN), 0)
     return address, wally.hex_from_bytes(redeem_script)
 
 def unblind_tx_outputs(chain, tx_hex):
