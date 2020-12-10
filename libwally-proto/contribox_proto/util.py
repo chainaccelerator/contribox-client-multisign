@@ -171,20 +171,21 @@ def get_masterkey_from_disk(chain, fingerprint, blindingkey=False, dir=KEYS_DIR)
     else:
         return bip32_key_unserialize(masterkey_bin)
 
-def save_masterkey_to_disk(chain, masterkey, fingerprint, blindingkey=False, dir=KEYS_DIR):
+def save_masterkey_to_disk(chain, masterkey, blindingkey=False, dir=KEYS_DIR):
     if blindingkey:
         dir = path.join(dir, BLINDING_KEYS_DIR)
         masterkey_bin = masterkey
+        name = "blinding_key"
     elif chain == AES_CHAIN:
         dir = path.join(dir, chain)
         masterkey_bin = masterkey
+        name = "aes"
     else:
         dir = path.join(dir, chain)
         masterkey_bin = bip32_key_serialize(masterkey, BIP32_FLAG_KEY_PRIVATE)
+        name = "xprv"
     check_dir(dir)
-    # TODO: check that a file with the same fingerprint doesn't exist. 
-    # The probability to have a collision on a fingerprint is small, but still
-    filename = path.join(dir, fingerprint)
+    filename = path.join(dir, name)
     save_to_disk(masterkey_bin, filename)
 
 def save_salt_to_disk(fingerprint, salt):

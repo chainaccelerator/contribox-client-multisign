@@ -1,9 +1,13 @@
 # Crypto contribox-proto Server
 
+## Prerequisites
+
+You must install [docker](https://docs.docker.com/get-docker/) for your OS.
+
 ## Start server
 
 ```bash
-  python server.py
+  make server
 ```
 
 ## Call JsonRPC method
@@ -11,36 +15,11 @@
 ```bash
 export SSM_ENDPOINT="http://localhost:5500/api/v1"
 export MASTER_ENTROPY="1b278d56ad8701d810362a18ee1a7b560cc4a0982ee1858be4dda1eca84bea7f"
-export CHAIN="elements-regtest"
 
 curl -i -X POST -H "Content-Type: application/json" -d '{
         "jsonrpc": "2.0",
-        "method": "new_master",
-        "params": ["'"$CHAIN"'", "'"$MASTER_ENTROPY"'", true],
-        "id": "42"
-    }' $SSM_ENDPOINT
-```
-
-```bash
-export SSM_ENDPOINT="http://localhost:5500/api/v1"
-export KEY_FINGERPRINT="ce9e7a9b"
-
-curl -i -X POST -H "Content-Type: application/json" -d '{
-        "jsonrpc": "2.0",
-        "method": "get_xpub",
-        "params": ["'"$CHAIN"'", "'"$KEY_FINGERPRINT"'"],
-        "id": "42"
-    }' $SSM_ENDPOINT
-```
-
-```bash
-export SSM_ENDPOINT="http://localhost:5500/api/v1"
-export KEY_FINGERPRINT="ce9e7a9b"
-
-curl -i -X POST -H "Content-Type: application/json" -d '{
-        "jsonrpc": "2.0",
-        "method": "get_xprv",
-        "params": ["bitcoin-main", "'"$KEY_FINGERPRINT"'"],
+        "method": "new_wallet",
+        "params": ["'"$MASTER_ENTROPY"'"],
         "id": "42"
     }' $SSM_ENDPOINT
 ```

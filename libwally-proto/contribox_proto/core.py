@@ -35,27 +35,7 @@ ISSUANCE_DEFAULT_CONTRACT_HASH = bytearray(b'\x00'*32)
 TOKEN_AMT = 0
 ISSUANCE_NONCE = bytearray(b'\x00'*32)
 FINGERPRINT = "ce9e7a9b" # we hardcode the fingerprint for some methods. In production we will use something different to store keys
-
-def generate_entropy_from_password(password):
-    """we can generate entropy from some password. A salt is generated randomly and then discarded.
-    """
-    # Fail if password is None or empty
-    if len(password) < 1:
-        logging.error("You provided no password")
-        raise exceptions.MissingValueError("Can't generate a new seed without password")
-    elif len(password) < 16:
-        logging.warning(f"Password provided is only {len(password)} characters long\n"
-                            "That might be too short to be secure")
-
-    _pass = password.encode('utf-8')
-    logging.info(f"Generating salt of {SALT_LEN} bytes")
-    salt = bytearray(urandom(SALT_LEN))
-
-    # Let's generate entropy from the provided password
-    entropy = bytearray('0'.encode('utf-8') * 64)
-    entropy = wally.pbkdf2_hmac_sha512(_pass, salt, 0, HMAC_COST)
-
-    return entropy
+CHAIN = "elements-regtest"
 
 def generate_mnemonic_from_entropy(entropy):
     """Generate a mnemonic of either 12 or 24 words.
@@ -70,14 +50,16 @@ def generate_mnemonic_from_entropy(entropy):
     logging.debug(f"Mnenonic is {''.join(mnemonic)}")
     return mnemonic
 
-def generate_master_blinding_key_from_seed(seed, chain, fingerprint, dir=KEYS_DIR):
+def generate_master_blinding_key_from_seed(seed, chain, dir=KEYS_DIR):
     """Generate the master blinding key from the seed, and save it to disk
     """
     master_blinding_key = bytearray(64)
     master_blinding_key = wally.asset_blinding_key_from_seed(seed) # SLIP-077 derivation
 
     # Save the blinding key to disk in a separate dir
-    save_masterkey_to_disk(chain, master_blinding_key, fingerprint, True, dir)
+    save_masterkey_to_disk(chain, master_blinding_key, True, dir)
+
+    return master_blinding_key
 
 def generate_seed_from_mnemonic(mnemonic, passphrase=None):
     seed = bytearray(64) # seed is 64 bytes
@@ -97,41 +79,25 @@ def get_master_blinding_key(chain, fingerprint):
     bkey = get_masterkey_from_disk(chain, fingerprint, True)
     return str(bkey.hex())
 
-def generate_masterkey_from_mnemonic(mnemonic, chain, size, passphrase=None, dir=KEYS_DIR):
-    """Generate a masterkey pair + a master blinding key if chain is Elements.
-    seed is 64B by default but we can also use only the first 32B encoded in WIF
-    in case we need to be compatible with Bitcoin Core wallet. 
+def generate_masterkey_from_mnemonic(mnemonic, chain, passphrase=None, dir=KEYS_DIR):
+    """Generate a masterkey pair + a master blinding key.
     """
-    if chain in ['bitcoin-main', 'liquidv1']:
         version = wally.BIP32_VER_MAIN_PRIVATE
-        wif_prefix = wally.WALLY_ADDRESS_VERSION_WIF_MAINNET
-    else:
-        version = wally.BIP32_VER_TEST_PRIVATE
-        wif_prefix = wally.WALLY_ADDRESS_VERSION_WIF_TESTNET
     
     # first get the seed from the mnemonic.
     seed = generate_seed_from_mnemonic(mnemonic, passphrase)
 
-    # If size is 32, we truncate the seed down to 32B in order to import it in Bitcoin Core
-    if size == '32':
-        seed = seed[:32]
-        wif = wally.wif_from_bytes(seed, wif_prefix, wally.WALLY_WIF_FLAG_COMPRESSED)
-        logging.debug(f"Seed in WIF is {wif}")
-
     # Now let's derivate the master privkey from seed
     masterkey = wally.bip32_key_from_seed(seed, version, 0)
-    fingerprint = bytearray(4)
-    wally.bip32_key_get_fingerprint(masterkey, fingerprint)
 
     # dump the hdkey to disk. Create a dir for each chain, filename is key fingerprint
-    save_masterkey_to_disk(chain, masterkey, str(fingerprint.hex()), False, dir)
+    save_masterkey_to_disk(chain, masterkey, False, dir)
 
     # If chain is Elements, we can also derive the blinding key from the same seed
-    if chain in ['liquidv1', 'elements-regtest']:
-        generate_master_blinding_key_from_seed(seed, chain, str(fingerprint.hex()), dir)
+    master_blinding_key = generate_master_blinding_key_from_seed(seed, chain, dir)
 
     # We return the fingerprint only to the caller and keep the keys here
-    return str(bin_to_hex(fingerprint))
+    return masterkey, master_blinding_key
 
 def get_pubkey_from_xpub(xpub: str, derivation_path: str):
     lpath = parse_path(derivation_path)
@@ -184,31 +150,23 @@ def get_address_from_path(chain, fingerprint, derivation_path, dir=KEYS_DIR):
 
     return address, pubkey, blinding_privkey
 
-def generate_new_hd_wallet(chain, entropy, is_bytes, size):
-    # First make sure we know for which network we need a seed
-    try:
-        assert chain in CHAINS
-    except AssertionError:
-        raise exceptions.UnexpectedValueError("Unknown chain.")
-
+def generate_new_hd_wallet(entropy):
     # Check that the ssm-keys dir exists, create it if necessary
     check_dir(KEYS_DIR)
 
-    if is_bytes == True:
-        # This can be useful for testing, but it is not recommended for production since the 
-        # entropy that is passed in argument is not salted
-        mnemonic = generate_mnemonic_from_entropy(bytes.fromhex(entropy))
-    else:
-        stretched_key = generate_entropy_from_password(entropy)
-        mnemonic = generate_mnemonic_from_entropy(stretched_key[:32])
+    _pass = entropy.encode('utf-8')
+    salt = bytearray(urandom(SALT_LEN)) # I need to make sure how I can call random() in a navigator from here
     
-    fingerprint = generate_masterkey_from_mnemonic(mnemonic, chain, size)
+    salted = bytearray('0'.encode('utf-8') * 32)
+    salted = wally.pbkdf2_hmac_sha256(_pass, salt, 0, HMAC_COST)
+    mnemonic = generate_mnemonic_from_entropy(salted)
 
-    xpub = get_xpub(chain, fingerprint, 'root')
+    master_key, master_blinding_key = generate_masterkey_from_mnemonic(mnemonic, CHAIN)
 
-    bkey = get_master_blinding_key(chain, fingerprint)
+    xprv = hdkey_to_base58(master_key, True)
+    xpub = hdkey_to_base58(master_key, False)
 
-    return fingerprint, xpub, bkey
+    return xprv, xpub, master_blinding_key.hex(), mnemonic
 
 def restore_hd_wallet(chain, hdkey, bkey=None, dir=KEYS_DIR):
     """
