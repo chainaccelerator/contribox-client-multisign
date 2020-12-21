@@ -1,0 +1,30 @@
+{{{ SCRIPT }}}
+<script>
+	Module.onRuntimeInitialized = async _ => {
+		const api = {
+			init: Module.cwrap('init', 'number', []),
+		};
+		var wally_example = function () {
+			console.log(api.init());
+		// const image = await loadImage('/image.jpeg');
+		// const p = api.create_buffer(image.width, image.height);
+		// Module.HEAP8.set(image.data, p);
+		// api.encode(p, image.width, image.height, 100);
+		// const resultPointer = api.get_result_pointer();
+		// const resultSize = api.get_result_size();
+		// const resultView = new Uint8Array(Module.HEAP8.buffer, resultPointer, resultSize);
+		// const result = new Uint8Array(resultView);
+		// api.free_result(resultPointer);
+		// api.destroy_buffer(p);
+		// const blob = new Blob([result], {type: 'image/webp'});
+		// const blobURL = URL.createObjectURL(blob);
+		// const img = document.createElement('img');
+		// img.src = blobURL;
+		// document.body.appendChild(img)
+	};
+	var Module = {
+        preRun: [],
+        postRun: [wally_example],
+	  };
+	};
+</script>
