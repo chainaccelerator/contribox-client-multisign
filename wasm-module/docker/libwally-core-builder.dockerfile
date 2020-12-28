@@ -40,20 +40,27 @@ RUN ${SOURCE_EMSDK} && emconfigure ./configure \
     --enable-elements \
     --disable-ecmult-static-precomputation \
     --disable-tests \
-    --enable-export-all \
-    --disable-shared
+    --enable-export-all 
+    # --disable-shared
 RUN ${SOURCE_EMSDK} && emmake make -j$(nproc)
 ADD wasm-module/ /src/contribox
 WORKDIR /src/contribox
 RUN ./tools/autogen.sh
 RUN ${SOURCE_EMSDK} && emconfigure ./configure 
+<<<<<<< HEAD
 ARG EXTRA_EXPORTED_RUNTIME_METHODS="['getValue', 'UTF8ToString', 'stringToUTF8', 'lengthBytesUTF8', 'cwrap']"
 ARG EXPORTED_FUNCTIONS="['_malloc','_free','_init','_newWallet','_wally_init','_bip39_mnemonic_from_bytes']"
+=======
+ARG EXTRA_EXPORTED_RUNTIME_METHODS="['getValue', 'UTF8ToString', 'stringToUTF8', 'lengthBytesUTF8', 'cwrap', 'ccall']"
+ARG EXPORTED_FUNCTIONS="['_malloc','_free','_wally_init','_bip39_mnemonic_from_bytes']"
+>>>>>>> Can call function from a main.js
 RUN ${SOURCE_EMSDK} && emcc \
     -s "EXTRA_EXPORTED_RUNTIME_METHODS=$EXTRA_EXPORTED_RUNTIME_METHODS" \
     -s "EXPORTED_FUNCTIONS=$EXPORTED_FUNCTIONS" \
-    src/contribox.c \
-    -Llibwally/src/.libs -lwallycore \
-    -Llibwally/src/secp256k1/.libs -lsecp256k1 \
-    -o contribox.html 
+    libwally/src/.libs/*.o \
+    libwally/src/secp256k1/src/*.o \
+    libwally/src/ccan/ccan/*/.libs/*.o \
+    libwally/src/ccan/ccan/*/*/.libs/*.o \
+    -o contribox.html \
+    --shell-file contrib/shell_minimal.html
 ENTRYPOINT [ "python3", "-m", "http.server" ]
