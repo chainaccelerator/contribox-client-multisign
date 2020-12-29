@@ -1,5 +1,15 @@
+function init() {
+    ccall("wally_init", 'number', ['number'], [0]);
+    var entropy_ctx = new Uint8Array(32); // WALLY_SECP_RANDOMIZE_LEN
+    window.crypto.getRandomValues(entropy_ctx);
+
+    element.value = element.value + "\nwally_secp_randomize ... " + ccall("wally_secp_randomize", 'number', ['array', 'number'], [entropy_ctx, entropy_ctx.length]);
+
+    return 0;
+}
+
 var element = document.getElementById('output');
-var wally_example = function() {
+var wally_example = function () {
     element.value = "wally_init ... " + ccall("wally_init", 'number', ['number'], [0]);
 
     var entropy_ctx = new Uint8Array(32); // WALLY_SECP_RANDOMIZE_LEN
@@ -16,7 +26,3 @@ var wally_example = function() {
     element.value = element.value + "\nwally_free_string ... " + ccall('wally_free_string', 'number', ['number'], [mnemonic_ptr]);
     Module._free(mnemonic_ptr);
 }
-var Module = {
-preRun: [],
-postRun: [wally_example],
-};
