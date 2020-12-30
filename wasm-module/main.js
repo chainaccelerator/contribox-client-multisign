@@ -11,7 +11,7 @@ function free_all(ptrs) {
 }
 
 function init() {
-  console.log("Initializing libwally\n");
+  console.log("Initializing libwally");
   if (ccall("wally_init", 'number', ['number'], [0]) !== 0) {
     return -1;
   };
@@ -51,18 +51,18 @@ function newWallet(userPassword) {
 
   // TODO: use pbkd with userPassword to get a key for aes encryption
   // generate a mnemonic (seed words) from this entropy
-  let mnemonic_ptr = Module._malloc(32);
-  ptrs.push(mnemonic_ptr);
-
-  if (ccall('bip39_mnemonic_from_bytes', 'number', ['number', 'array', 'number', 'number'], [null, entropy, entropy.length, mnemonic_ptr]) !== 0) {
-    console.log("bip39_mnemonic_from_bytes failed");
+  if ((mnemonic = ccall('generateMnemonic', 'string', ['array', 'number'], [entropy, entropy.length])) === "") {
+    console.log("generateMnemonic failed");
     return "";
-  };
+  }
 
   // Optional: show the seed words to the user.
-  alert("Ceci est la phrase de restauration de votre wallet,\nveuillez la noter soigneusement avant de fermer cette fenêtre.\n" + UTF8ToString(getValue(mnemonic_ptr, '*')));
-  encryptedWallet.integration.share.master.seedWords = UTF8ToString(getValue(mnemonic_ptr, '*'));
-  let mnemonic = UTF8ToString(getValue(mnemonic_ptr, '*'));
+  // alert("Ceci est la phrase de restauration de votre wallet,\nveuillez la noter soigneusement avant de fermer cette fenêtre.\n" + UTF8ToString(getValue(mnemonic_ptr, '*')));
+  // encryptedWallet.integration.share.master.seedWords = UTF8ToString(getValue(mnemonic_ptr, '*'));
+  // let mnemonic = UTF8ToString(getValue(mnemonic_ptr, '*'));
+
+  alert("Ceci est la phrase de restauration de votre wallet,\nveuillez la noter soigneusement avant de fermer cette fenêtre.\n" + mnemonic);
+  encryptedWallet.integration.share.master.seedWords = mnemonic;
 
   // generate the seed from the mnemonic
   let seed_ptr = Module._malloc(64);
@@ -122,10 +122,6 @@ function newWallet(userPassword) {
   
 
   // free the string alloced by Libwally
-  if (ccall('wally_free_string', 'number', ['number'], [mnemonic_ptr]) !== 0) {
-    console.log("Libwally failed to free mnemonic");
-    return "";
-  };
   if (ccall('wally_free_string', 'number', ['number'], [masterKey_ptr]) !== 0) {
     console.log("Libwally failed to free masterkey");
     return "";

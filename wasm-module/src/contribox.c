@@ -4,15 +4,6 @@
 # include <time.h>
 # include <stdlib.h>
 
-EMSCRIPTEN_KEEPALIVE
-int init() {
-    uint32_t flag = 0;
-    if (wally_init(flag) != 0) {
-        return -1;
-    }
-    return 0;
-}
-
 /* char *generateAesKey(const char *user_password) {
     char *base58_key;
     unsigned char *key;
@@ -29,6 +20,18 @@ char *encryptConfig(const unsigned char *password, char *clearConfig) {
     wally_scrypt(password, strlen(password))
     return encryptedConfig;
 } */
+
+EMSCRIPTEN_KEEPALIVE
+char *generateMnemonic(const unsigned char *entropy, size_t entropy_len) {
+    char *seedWords;
+    int ret;
+
+    if ((ret = bip39_mnemonic_from_bytes(NULL, entropy, entropy_len, &seedWords)) != 0) {
+        printf("mnemonic generation failed with %d error code\n", ret);
+        return "";
+    }
+    return seedWords;
+}
 
 EMSCRIPTEN_KEEPALIVE
 char *newWallet(const char *entropy_hex) {
