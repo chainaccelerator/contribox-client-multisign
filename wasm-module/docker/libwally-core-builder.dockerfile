@@ -41,10 +41,10 @@ RUN ${SOURCE_EMSDK} && emconfigure ./configure \
     --disable-ecmult-static-precomputation \
     --disable-tests \
     --enable-export-all 
-    # --disable-shared
 RUN ${SOURCE_EMSDK} && emmake make -j$(nproc)
 ADD wasm-module/ /src/contribox
 WORKDIR /src/contribox
+<<<<<<< HEAD
 RUN ./tools/autogen.sh
 RUN ${SOURCE_EMSDK} && emconfigure ./configure 
 <<<<<<< HEAD
@@ -54,6 +54,22 @@ ARG EXPORTED_FUNCTIONS="['_malloc','_free','_init','_newWallet','_wally_init','_
 ARG EXTRA_EXPORTED_RUNTIME_METHODS="['getValue', 'UTF8ToString', 'stringToUTF8', 'lengthBytesUTF8', 'cwrap', 'ccall']"
 ARG EXPORTED_FUNCTIONS="['_malloc','_free','_wally_init','_bip39_mnemonic_from_bytes']"
 >>>>>>> Can call function from a main.js
+=======
+ARG EXTRA_EXPORTED_RUNTIME_METHODS="['getValue', 'UTF8ToString', 'stringToUTF8', 'lengthBytesUTF8', 'cwrap', 'ccall']"
+ARG EXPORTED_FUNCTIONS="[\
+    '_malloc',\
+    '_free',\
+    '_wally_init',\
+    '_wally_bzero',\
+    '_bip39_mnemonic_from_bytes',\
+    '_wally_secp_randomize',\
+    '_wally_free_string',\
+    '_bip39_mnemonic_to_seed',\
+    '_bip32_key_from_seed',\
+    '_bip32_key_to_base58',\
+    '_wally_hex_from_bytes',\
+    '_wally_asset_blinding_key_from_seed']"
+>>>>>>> Add newWallet
 RUN ${SOURCE_EMSDK} && emcc \
     -s "EXTRA_EXPORTED_RUNTIME_METHODS=$EXTRA_EXPORTED_RUNTIME_METHODS" \
     -s "EXPORTED_FUNCTIONS=$EXPORTED_FUNCTIONS" \

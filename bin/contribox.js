@@ -1787,16 +1787,31 @@ var ___wasm_call_ctors = Module["___wasm_call_ctors"] = createExportWrapper("__w
 var _memset = Module["_memset"] = createExportWrapper("memset");
 
 /** @type {function(...*):?} */
+var _bip32_key_from_seed = Module["_bip32_key_from_seed"] = createExportWrapper("bip32_key_from_seed");
+
+/** @type {function(...*):?} */
+var _bip32_key_to_base58 = Module["_bip32_key_to_base58"] = createExportWrapper("bip32_key_to_base58");
+
+/** @type {function(...*):?} */
 var _wally_free_string = Module["_wally_free_string"] = createExportWrapper("wally_free_string");
 
 /** @type {function(...*):?} */
 var _bip39_mnemonic_from_bytes = Module["_bip39_mnemonic_from_bytes"] = createExportWrapper("bip39_mnemonic_from_bytes");
 
 /** @type {function(...*):?} */
+var _bip39_mnemonic_to_seed = Module["_bip39_mnemonic_to_seed"] = createExportWrapper("bip39_mnemonic_to_seed");
+
+/** @type {function(...*):?} */
 var _wally_asset_blinding_key_from_seed = Module["_wally_asset_blinding_key_from_seed"] = createExportWrapper("wally_asset_blinding_key_from_seed");
 
 /** @type {function(...*):?} */
+var _wally_hex_from_bytes = Module["_wally_hex_from_bytes"] = createExportWrapper("wally_hex_from_bytes");
+
+/** @type {function(...*):?} */
 var _wally_secp_randomize = Module["_wally_secp_randomize"] = createExportWrapper("wally_secp_randomize");
+
+/** @type {function(...*):?} */
+var _wally_bzero = Module["_wally_bzero"] = createExportWrapper("wally_bzero");
 
 /** @type {function(...*):?} */
 var _wally_init = Module["_wally_init"] = createExportWrapper("wally_init");
