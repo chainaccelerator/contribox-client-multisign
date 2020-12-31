@@ -22,6 +22,19 @@ char *encryptConfig(const unsigned char *password, char *clearConfig) {
 } */
 
 EMSCRIPTEN_KEEPALIVE
+int is_elements() {
+    int ret;
+    size_t written;
+
+    ret = wally_is_elements_build(&written);
+    if (ret != 0) {
+        return 0;
+    }
+
+    return written;
+}
+
+EMSCRIPTEN_KEEPALIVE
 char *generateMnemonic(const unsigned char *entropy, size_t entropy_len) {
     char *seedWords;
     int ret;

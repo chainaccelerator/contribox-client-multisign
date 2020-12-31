@@ -55,6 +55,7 @@ ARG EXPORTED_FUNCTIONS="[\
     '_wally_bzero',\
     '_bip39_mnemonic_from_bytes',\
     '_wally_secp_randomize',\
+    '_is_elements',\
     '_wally_free_string',\
     '_bip39_mnemonic_to_seed',\
     '_bip32_key_from_seed',\

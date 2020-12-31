@@ -17,12 +17,20 @@ function init() {
   };
 
   console.log("Initializing PRNG");
-  var entropy_ctx = new Uint8Array(32); // WALLY_SECP_RANDOMIZE_LEN
+  let entropy_ctx = new Uint8Array(32); // WALLY_SECP_RANDOMIZE_LEN
   window.crypto.getRandomValues(entropy_ctx);
 
   if (ccall("wally_secp_randomize", 'number', ['array', 'number'], [entropy_ctx, entropy_ctx.length]) !== 0) {
     return -1;
   };
+
+  console.log("Checking that libwally has been compiled with elements");
+  let is_elements = ccall('is_elements', 'number', [], [])
+
+  if (is_elements !== 1) {
+    console.log("libwally is not build with elements");
+    return -1;
+  }
 
   return 0;
 }
