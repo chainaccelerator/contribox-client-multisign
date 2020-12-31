@@ -10,6 +10,19 @@ function free_all(ptrs) {
   };
 }
 
+function hexStringToByte(str) {
+  if (!str) {
+    return new Uint8Array();
+  }
+  
+  var a = [];
+  for (var i = 0, len = str.length; i < len; i+=2) {
+    a.push(parseInt(str.substr(i,2),16));
+  }
+  
+  return new Uint8Array(a);
+}
+
 function init() {
   console.log("Initializing libwally");
   if (ccall("wally_init", 'number', ['number'], [0]) !== 0) {
@@ -65,22 +78,16 @@ function newWallet(userPassword) {
   }
 
   // Optional: show the seed words to the user.
-  // alert("Ceci est la phrase de restauration de votre wallet,\nveuillez la noter soigneusement avant de fermer cette fenêtre.\n" + UTF8ToString(getValue(mnemonic_ptr, '*')));
-  // encryptedWallet.integration.share.master.seedWords = UTF8ToString(getValue(mnemonic_ptr, '*'));
-  // let mnemonic = UTF8ToString(getValue(mnemonic_ptr, '*'));
-
   alert("Ceci est la phrase de restauration de votre wallet,\nveuillez la noter soigneusement avant de fermer cette fenêtre.\n" + mnemonic);
   encryptedWallet.integration.share.master.seedWords = mnemonic;
 
   // generate the seed from the mnemonic
-  let seed_ptr = Module._malloc(64);
-  ptrs.push(seed_ptr);
-  let seed = new Uint8Array(Module.HEAPU8.buffer, seed_ptr, 64); 
-  if (ccall('bip39_mnemonic_to_seed', 'number', ['string', 'number', 'number', 'number', 'number'], [mnemonic, null, seed_ptr, seed.length, written]) !== 0 || 
-  getValue(written) !== 64) {
-    console.log("bip39_mnemonic_to_seed failed");
+  if ((seed_hex = ccall('generateSeed', 'string', ['string'], [mnemonic])) === "") {
+    console.log("generateMnemonic failed");
     return "";
-  };
+  }
+
+  let seed = hexStringToByte(seed_hex);
 
   // generate the master private key and blinding master key from the seed
   let masterKey_ptr = Module._malloc(200); // the number of bytes malloced here is not accurate, but good enough for now
@@ -110,7 +117,7 @@ function newWallet(userPassword) {
   let masterBlindingKey_ptr = Module._malloc(64);
   ptrs.push(masterBlindingKey_ptr);
   let masterBlindingKey = new Uint8Array(Module.HEAPU8.buffer, masterBlindingKey_ptr, 64); 
-  if (ccall('wally_asset_blinding_key_from_seed', 'number', ['number', 'number', 'number', 'number'], [seed_ptr, seed.length, masterBlindingKey_ptr, masterBlindingKey.length]) !== 0) {
+  if (ccall('wally_asset_blinding_key_from_seed', 'number', ['array', 'number', 'number', 'number'], [seed, seed.length, masterBlindingKey_ptr, masterBlindingKey.length]) !== 0) {
     console.log("wally_asset_blinding_key_from_seed failed");
     return "";
   }

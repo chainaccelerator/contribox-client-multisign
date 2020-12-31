@@ -53,7 +53,6 @@ ARG EXPORTED_FUNCTIONS="[\
     '_generateMnemonic',\
     '_wally_init',\
     '_wally_bzero',\
-    '_bip39_mnemonic_from_bytes',\
     '_wally_secp_randomize',\
     '_is_elements',\
     '_wally_free_string',\

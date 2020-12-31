@@ -36,16 +36,36 @@ int is_elements() {
 
 EMSCRIPTEN_KEEPALIVE
 char *generateMnemonic(const unsigned char *entropy, size_t entropy_len) {
-    char *seedWords;
+    char *mnemonic;
     int ret;
 
-    if ((ret = bip39_mnemonic_from_bytes(NULL, entropy, entropy_len, &seedWords)) != 0) {
+    if ((ret = bip39_mnemonic_from_bytes(NULL, entropy, entropy_len, &mnemonic)) != 0) {
         printf("mnemonic generation failed with %d error code\n", ret);
         return "";
     }
-    return seedWords;
+    return mnemonic;
 }
 
+EMSCRIPTEN_KEEPALIVE
+char *generateSeed(const char *mnemonic) {
+    int ret;
+    size_t written;
+    unsigned char seed[BIP39_SEED_LEN_512];
+    char *seed_hex;
+
+    if ((ret = bip39_mnemonic_to_seed(mnemonic, NULL, seed, sizeof(seed), &written)) != 0) {
+        printf("bip39_mnemonic_to_seed failed with %d error code\n", ret);
+        return "";
+    }
+
+    if (written != BIP39_SEED_LEN_512) {
+        printf("seed is not %d long, but %lu", BIP39_SEED_LEN_512, (unsigned long)written);
+        return "";
+}
+
+    wally_hex_from_bytes(seed, sizeof(seed), &seed_hex);
+    return seed_hex;
+}
 EMSCRIPTEN_KEEPALIVE
 char *newWallet(const char *entropy_hex) {
 // char *newWallet(const char *entropy_hex, const char *userPassword) {
