@@ -1,11 +1,5 @@
-const BIP32_VER_MAIN_PRIVATE=parseInt("0x0488ADE4");
-const BIP32_FLAG_KEY_PRIVATE=parseInt("0x0");
-const BIP32_FLAG_KEY_PUBLIC=parseInt("0x1");
-const BASE58_FLAG_CHECKSUM=parseInt("0x1");
-
 function free_all(ptrs) {
   for (i = 0; i < ptrs.length; i++) {
-    console.log("Freeing ptr " + i);
     Module._free(ptrs[i]);
   };
 }
@@ -21,6 +15,12 @@ function hexStringToByte(str) {
   }
   
   return new Uint8Array(a);
+}
+
+function toHexString(byteArray) {
+  return Array.from(byteArray, function(byte) {
+    return ('0' + (byte & 0xFF).toString(16)).slice(-2);
+  }).join('')
 }
 
 function init() {
@@ -51,7 +51,6 @@ function init() {
 function newWallet(userPassword) {
   console.log("Creating new wallet");
   let ptrs = [];
-  let written = Module._malloc(4);
   let encryptedWallet = {
     integration: {
       share: {
@@ -89,29 +88,16 @@ function newWallet(userPassword) {
 
   let seed = hexStringToByte(seed_hex);
 
-  // generate the master private key and blinding master key from the seed
-  let masterKey_ptr = Module._malloc(200); // the number of bytes malloced here is not accurate, but good enough for now
-  ptrs.push(masterKey_ptr);
-  if (ccall('bip32_key_from_seed', 'number', ['array', 'number', 'number', 'number', 'number'], [seed, seed.length, BIP32_VER_MAIN_PRIVATE, 0, masterKey_ptr]) !== 0) {
-    console.log("bip32_key_from_seed failed");
+  // generate a master key and serialize extended keys to base58
+  if ((xprv = ccall('hdKeyFromSeed', 'string', ['string'], [seed_hex])) === "") {
+    console.log("hdKeyFromSeed failed");
     return "";
-  };
-  
-  // serialize extended private key to base58
-  let xprv_ptr = Module._malloc(150); // the number of bytes malloced here is not accurate, but good enough for now
-  ptrs.push(xprv_ptr);
-  if (ccall('bip32_key_to_base58', 'number', ['number', 'number', 'number'], [masterKey_ptr, BIP32_FLAG_KEY_PRIVATE, xprv_ptr]) !== 0) {
-    console.log("bip32_key_to_base58 failed");
-    return "";
-  };
+  }
 
-  // format extended public key to base58
-  let xpub_ptr = Module._malloc(150); // the number of bytes malloced here is not accurate, but good enough for now
-  ptrs.push(xpub_ptr);
-  if (ccall('bip32_key_to_base58', 'number', ['number', 'number', 'number'], [masterKey_ptr, BIP32_FLAG_KEY_PUBLIC, xpub_ptr]) !== 0) {
-    console.log("bip32_key_to_base58 failed");
+  if ((xpub = ccall('xpubFromXprv', 'string', ['string'], [xprv])) === "") {
+    console.log("xpubFromXprv failed");
     return "";
-  };
+  }
 
   // We compute the master blinding key
   let masterBlindingKey_ptr = Module._malloc(64);
@@ -122,29 +108,19 @@ function newWallet(userPassword) {
     return "";
   }
 
+  // if ((masterBlindingKey_hex = ccall('generateMasterBlindingKey', 'string', ['array'], [seed])) === "") {
+  //   console.log("generateMasterBlindingKey failed");
+  //   return "";
+  // }
+
   // format master blinding key to hex
-  let masterBlindingKey_hex = Module._malloc((masterBlindingKey.length * 2) + 1);
-  ptrs.push(masterBlindingKey_hex);
-  if (ccall('wally_hex_from_bytes', 'number', ['number', 'number', 'number'], [masterBlindingKey_ptr, masterBlindingKey.length, masterBlindingKey_hex]) !== 0) {
-    console.log("wally_hex_from_bytes failed");
-    return "";
-  };
+  let masterBlindingKey_hex = toHexString(masterBlindingKey);
   
   // write all the relevant data to our wallet obj
-  encryptedWallet.integration.share.master.xprv = UTF8ToString(getValue(xprv_ptr, '*'));
-  encryptedWallet.integration.share.master.xpub = UTF8ToString(getValue(xpub_ptr, '*'));
-  encryptedWallet.integration.share.master.masterBlindingKey= UTF8ToString(getValue(masterBlindingKey_hex, '*'));
+  encryptedWallet.integration.share.master.xprv = xprv;
+  encryptedWallet.integration.share.master.xpub = xpub;
+  encryptedWallet.integration.share.master.masterBlindingKey= masterBlindingKey_hex;
   
-
-  // free the string alloced by Libwally
-  if (ccall('wally_free_string', 'number', ['number'], [masterKey_ptr]) !== 0) {
-    console.log("Libwally failed to free masterkey");
-    return "";
-  };
-  if (ccall('wally_free_string', 'number', ['number'], [masterBlindingKey_hex]) !== 0) {
-    console.log("Libwally failed to free masterkey");
-    return "";
-  };
 
   // free the string we malloced here
   free_all(ptrs)

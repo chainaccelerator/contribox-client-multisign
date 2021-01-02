@@ -50,16 +50,9 @@ ARG EXTRA_EXPORTED_RUNTIME_METHODS="['getValue', 'UTF8ToString', 'stringToUTF8',
 ARG EXPORTED_FUNCTIONS="[\
     '_malloc',\
     '_free',\
-    '_generateMnemonic',\
     '_wally_init',\
-    '_wally_bzero',\
     '_wally_secp_randomize',\
     '_is_elements',\
-    '_wally_free_string',\
-    '_bip39_mnemonic_to_seed',\
-    '_bip32_key_from_seed',\
-    '_bip32_key_to_base58',\
-    '_wally_hex_from_bytes',\
     '_wally_asset_blinding_key_from_seed']"
 RUN ${SOURCE_EMSDK} && emcc \
     -s "EXTRA_EXPORTED_RUNTIME_METHODS=$EXTRA_EXPORTED_RUNTIME_METHODS" \
