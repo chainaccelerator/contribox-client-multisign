@@ -51,7 +51,7 @@ function init() {
 function newWallet(userPassword) {
   console.log("Creating new wallet");
   let ptrs = [];
-  let encryptedWallet = {
+  let Wallet = {
     integration: {
       share: {
         master: {
@@ -69,7 +69,6 @@ function newWallet(userPassword) {
   let entropy = new Uint8Array(32); // BIP39_ENTROPY_LEN_256
   window.crypto.getRandomValues(entropy);
 
-  // TODO: use pbkd with userPassword to get a key for aes encryption
   // generate a mnemonic (seed words) from this entropy
   if ((mnemonic = ccall('generateMnemonic', 'string', ['array', 'number'], [entropy, entropy.length])) === "") {
     console.log("generateMnemonic failed");
@@ -78,7 +77,7 @@ function newWallet(userPassword) {
 
   // Optional: show the seed words to the user.
   alert("Ceci est la phrase de restauration de votre wallet,\nveuillez la noter soigneusement avant de fermer cette fenêtre.\n" + mnemonic);
-  encryptedWallet.integration.share.master.seedWords = mnemonic;
+  Wallet.integration.share.master.seedWords = mnemonic;
 
   // generate the seed from the mnemonic
   if ((seed_hex = ccall('generateSeed', 'string', ['string'], [mnemonic])) === "") {
@@ -117,14 +116,26 @@ function newWallet(userPassword) {
   let masterBlindingKey_hex = toHexString(masterBlindingKey);
   
   // write all the relevant data to our wallet obj
-  encryptedWallet.integration.share.master.xprv = xprv;
-  encryptedWallet.integration.share.master.xpub = xpub;
-  encryptedWallet.integration.share.master.masterBlindingKey= masterBlindingKey_hex;
+  Wallet.integration.share.master.xprv = xprv;
+  Wallet.integration.share.master.xpub = xpub;
+  Wallet.integration.share.master.masterBlindingKey= masterBlindingKey_hex;
   
+  // Encrypt the wallet in Json form with user password
+  let encryptedWallet_ptr = Module._malloc(32);
+  ptrs.push(encryptedWallet_ptr);
+  if ((encryptedWallet = ccall('encryptFileWithPassword', 'string', ['string', 'string', 'number'], [userPassword, JSON.stringify(Wallet), encryptedWallet_ptr])) === "") {
+    console.log("encryptFileWithPassword failed");
+    return "";
+  }
+
+  if (ccall('wally_free_string', 'number', ['number'], [encryptedWallet_ptr]) !== 0) {
+    console.log("encryptedWallet_ptr wasn't freed");
+    return "";
+  }
 
   // free the string we malloced here
   free_all(ptrs)
 
   // return the wallet obj in JSON format
-  return JSON.stringify(encryptedWallet);
+  return encryptedWallet;
 }

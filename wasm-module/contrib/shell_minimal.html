@@ -34,12 +34,14 @@
         alert("Wallet creation failed");
         return;
       }
-      walletObj = JSON.parse(wallet);
-      console.log("New wallet successfully created\n");
-      console.log("xprv is " + walletObj.integration.share.master.xprv);
-      console.log("xpub is " + walletObj.integration.share.master.xpub);
-      console.log("master blinding key is " + walletObj.integration.share.master.masterBlindingKey);
-      console.log("seed words are \n" + walletObj.integration.share.master.seedWords);
+      console.log("encryptedWallet is " + wallet);
+
+      // walletObj = JSON.parse(wallet);
+      // console.log("New wallet successfully created\n");
+      // console.log("xprv is " + walletObj.integration.share.master.xprv);
+      // console.log("xpub is " + walletObj.integration.share.master.xpub);
+      // console.log("master blinding key is " + walletObj.integration.share.master.masterBlindingKey);
+      // console.log("seed words are \n" + walletObj.integration.share.master.seedWords);
     }
     var Module = {
       onRuntimeInitialized: function () {

@@ -114,6 +114,62 @@ char *xpubFromXprv(const char *xprv) {
     return xpub;
 }
 
+EMSCRIPTEN_KEEPALIVE
+char *encryptFileWithPassword(const char *userPassword, const char *toEncrypt, char *encryptedFile) {
+    unsigned char *cipher;
+    unsigned char aesKey[PBKDF2_HMAC_SHA256_LEN];
+    int cipher_len;
+    size_t written;
+    unsigned char initVector[AES_BLOCK_LEN];
+    int ret;
+
+    // generate key from password
+    if ((ret = wally_pbkdf2_hmac_sha256(
+                            (unsigned char*)userPassword, 
+                            strlen(userPassword), 
+                            NULL, 
+                            (size_t)0,
+                            0,
+                            16384,
+                            aesKey, 
+                            PBKDF2_HMAC_SHA256_LEN)) != 0) {
+        printf("wally_pbkdf2_hmac_sha256 failed with %d\n", ret);
+        return "";
+    };
+
+    // get initialization vector of 16 bytes
+    srand((unsigned int)time(NULL));
+    for (int i = 0; i < AES_BLOCK_LEN; i++) {
+        initVector[i] = rand();
+    }
+
+    // get the length of the cipher
+    cipher_len = strlen(toEncrypt) / 16 * 16 + 16;
+    cipher = calloc(cipher_len, sizeof(*cipher));
+
+    // encrypt message
+    if ((ret = wally_aes_cbc(
+                aesKey, 
+                PBKDF2_HMAC_SHA256_LEN, 
+                initVector,
+                AES_BLOCK_LEN,
+                (unsigned char*)toEncrypt,
+                strlen(toEncrypt),
+                AES_FLAG_ENCRYPT,
+                cipher,
+                cipher_len,
+                &written
+                )) != 0) {
+        printf("wally_aes_cbc failed with %d\n", ret);
+        free(cipher);
+        return "";
+    };
+    wally_base58_from_bytes(cipher, cipher_len, BASE58_FLAG_CHECKSUM, &encryptedFile);
+
+    free(cipher);
+
+    return encryptedFile;
+}
 // EMSCRIPTEN_KEEPALIVE
 // char *generateMasterBlindingKey(const unsigned char *seed) {
 //     unsigned char bytes_out[HMAC_SHA512_LEN];

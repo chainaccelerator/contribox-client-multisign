@@ -53,6 +53,7 @@ ARG EXPORTED_FUNCTIONS="[\
     '_wally_init',\
     '_wally_secp_randomize',\
     '_is_elements',\
+    '_wally_free_string',\
     '_wally_asset_blinding_key_from_seed']"
 RUN ${SOURCE_EMSDK} && emcc \
     -s "EXTRA_EXPORTED_RUNTIME_METHODS=$EXTRA_EXPORTED_RUNTIME_METHODS" \
