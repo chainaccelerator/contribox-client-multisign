@@ -1739,6 +1739,14 @@ var ASM_CONSTS = {
   function _setTempRet0($i) {
       setTempRet0(($i) | 0);
     }
+
+  function _time(ptr) {
+      var ret = (Date.now()/1000)|0;
+      if (ptr) {
+        HEAP32[((ptr)>>2)]=ret;
+      }
+      return ret;
+    }
 var ASSERTIONS = true;
 
 
@@ -1777,50 +1785,54 @@ var asmLibraryArg = {
   "fd_close": _fd_close,
   "fd_seek": _fd_seek,
   "fd_write": _fd_write,
-  "setTempRet0": _setTempRet0
+  "setTempRet0": _setTempRet0,
+  "time": _time
 };
 var asm = createWasm();
 /** @type {function(...*):?} */
 var ___wasm_call_ctors = Module["___wasm_call_ctors"] = createExportWrapper("__wasm_call_ctors");
 
 /** @type {function(...*):?} */
-var _memset = Module["_memset"] = createExportWrapper("memset");
+var _is_elements = Module["_is_elements"] = createExportWrapper("is_elements");
 
 /** @type {function(...*):?} */
-var _bip32_key_from_seed = Module["_bip32_key_from_seed"] = createExportWrapper("bip32_key_from_seed");
+var _generateMnemonic = Module["_generateMnemonic"] = createExportWrapper("generateMnemonic");
 
 /** @type {function(...*):?} */
-var _bip32_key_to_base58 = Module["_bip32_key_to_base58"] = createExportWrapper("bip32_key_to_base58");
+var _generateSeed = Module["_generateSeed"] = createExportWrapper("generateSeed");
 
 /** @type {function(...*):?} */
-var _wally_free_string = Module["_wally_free_string"] = createExportWrapper("wally_free_string");
-
-/** @type {function(...*):?} */
-var _bip39_mnemonic_from_bytes = Module["_bip39_mnemonic_from_bytes"] = createExportWrapper("bip39_mnemonic_from_bytes");
-
-/** @type {function(...*):?} */
-var _bip39_mnemonic_to_seed = Module["_bip39_mnemonic_to_seed"] = createExportWrapper("bip39_mnemonic_to_seed");
+var _generateMasterBlindingKey = Module["_generateMasterBlindingKey"] = createExportWrapper("generateMasterBlindingKey");
 
 /** @type {function(...*):?} */
 var _wally_asset_blinding_key_from_seed = Module["_wally_asset_blinding_key_from_seed"] = createExportWrapper("wally_asset_blinding_key_from_seed");
 
 /** @type {function(...*):?} */
-var _wally_hex_from_bytes = Module["_wally_hex_from_bytes"] = createExportWrapper("wally_hex_from_bytes");
-
-/** @type {function(...*):?} */
-var _wally_secp_randomize = Module["_wally_secp_randomize"] = createExportWrapper("wally_secp_randomize");
-
-/** @type {function(...*):?} */
-var _wally_bzero = Module["_wally_bzero"] = createExportWrapper("wally_bzero");
-
-/** @type {function(...*):?} */
-var _wally_init = Module["_wally_init"] = createExportWrapper("wally_init");
+var _hdKeyFromSeed = Module["_hdKeyFromSeed"] = createExportWrapper("hdKeyFromSeed");
 
 /** @type {function(...*):?} */
 var _malloc = Module["_malloc"] = createExportWrapper("malloc");
 
 /** @type {function(...*):?} */
 var _free = Module["_free"] = createExportWrapper("free");
+
+/** @type {function(...*):?} */
+var _xpubFromXprv = Module["_xpubFromXprv"] = createExportWrapper("xpubFromXprv");
+
+/** @type {function(...*):?} */
+var _encryptFileWithPassword = Module["_encryptFileWithPassword"] = createExportWrapper("encryptFileWithPassword");
+
+/** @type {function(...*):?} */
+var _decryptFileWithPassword = Module["_decryptFileWithPassword"] = createExportWrapper("decryptFileWithPassword");
+
+/** @type {function(...*):?} */
+var _wally_free_string = Module["_wally_free_string"] = createExportWrapper("wally_free_string");
+
+/** @type {function(...*):?} */
+var _wally_secp_randomize = Module["_wally_secp_randomize"] = createExportWrapper("wally_secp_randomize");
+
+/** @type {function(...*):?} */
+var _wally_init = Module["_wally_init"] = createExportWrapper("wally_init");
 
 /** @type {function(...*):?} */
 var ___errno_location = Module["___errno_location"] = createExportWrapper("__errno_location");
@@ -1851,9 +1863,6 @@ var _emscripten_stack_get_free = Module["_emscripten_stack_get_free"] = function
 var _emscripten_stack_get_end = Module["_emscripten_stack_get_end"] = function() {
   return (_emscripten_stack_get_end = Module["_emscripten_stack_get_end"] = Module["asm"]["emscripten_stack_get_end"]).apply(null, arguments);
 };
-
-/** @type {function(...*):?} */
-var _memalign = Module["_memalign"] = createExportWrapper("memalign");
 
 /** @type {function(...*):?} */
 var dynCall_jiji = Module["dynCall_jiji"] = createExportWrapper("dynCall_jiji");

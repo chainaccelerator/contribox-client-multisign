@@ -52,16 +52,11 @@ function newWallet(userPassword) {
   console.log("Creating new wallet");
   let ptrs = [];
   let Wallet = {
-    integration: {
-      share: {
-        master: {
-          xprv: "",
-          xpub: "",
-          range: [],
-          seedWords: "",
-          masterBlindingKey: "",
-        }
-      }
+    master: {
+      xprv: "",
+      range: [],
+      seedWords: "",
+      masterBlindingKey: "",
     }
   }
   
@@ -77,7 +72,6 @@ function newWallet(userPassword) {
 
   // Optional: show the seed words to the user.
   alert("Ceci est la phrase de restauration de votre wallet,\nveuillez la noter soigneusement avant de fermer cette fenêtre.\n" + mnemonic);
-  Wallet.integration.share.master.seedWords = mnemonic;
 
   // generate the seed from the mnemonic
   if ((seed_hex = ccall('generateSeed', 'string', ['string'], [mnemonic])) === "") {
@@ -85,40 +79,22 @@ function newWallet(userPassword) {
     return "";
   }
 
-  let seed = hexStringToByte(seed_hex);
-
   // generate a master key and serialize extended keys to base58
   if ((xprv = ccall('hdKeyFromSeed', 'string', ['string'], [seed_hex])) === "") {
     console.log("hdKeyFromSeed failed");
     return "";
   }
 
-  if ((xpub = ccall('xpubFromXprv', 'string', ['string'], [xprv])) === "") {
-    console.log("xpubFromXprv failed");
-    return "";
-  }
-
   // We compute the master blinding key
-  let masterBlindingKey_ptr = Module._malloc(64);
-  ptrs.push(masterBlindingKey_ptr);
-  let masterBlindingKey = new Uint8Array(Module.HEAPU8.buffer, masterBlindingKey_ptr, 64); 
-  if (ccall('wally_asset_blinding_key_from_seed', 'number', ['array', 'number', 'number', 'number'], [seed, seed.length, masterBlindingKey_ptr, masterBlindingKey.length]) !== 0) {
-    console.log("wally_asset_blinding_key_from_seed failed");
+  if ((masterBlindingKey_hex = ccall('generateMasterBlindingKey', 'string', ['string'], [seed_hex])) === "") {
+    console.log("generateMasterBlindingKey failed");
     return "";
   }
 
-  // if ((masterBlindingKey_hex = ccall('generateMasterBlindingKey', 'string', ['array'], [seed])) === "") {
-  //   console.log("generateMasterBlindingKey failed");
-  //   return "";
-  // }
-
-  // format master blinding key to hex
-  let masterBlindingKey_hex = toHexString(masterBlindingKey);
-  
   // write all the relevant data to our wallet obj
-  Wallet.integration.share.master.xprv = xprv;
-  Wallet.integration.share.master.xpub = xpub;
-  Wallet.integration.share.master.masterBlindingKey= masterBlindingKey_hex;
+  Wallet.master.xprv = xprv;
+  Wallet.master.masterBlindingKey= masterBlindingKey_hex;
+  Wallet.master.seedWords = mnemonic;
   
   // Encrypt the wallet in Json form with user password
   let encryptedWallet_ptr = Module._malloc(32);
