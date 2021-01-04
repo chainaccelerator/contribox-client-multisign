@@ -128,6 +128,7 @@ function newWallet(userPassword) {
     return "";
   }
 
+  // free the string malloced by libwally
   if (ccall('wally_free_string', 'number', ['number'], [encryptedWallet_ptr]) !== 0) {
     console.log("encryptedWallet_ptr wasn't freed");
     return "";
@@ -138,4 +139,15 @@ function newWallet(userPassword) {
 
   // return the wallet obj in JSON format
   return encryptedWallet;
+}
+
+function decryptWallet(encryptedWallet, userPassword) {
+  console.log("Entering decryptWallet");
+
+  if ((clearWallet = ccall('decryptFileWithPassword', 'string', ['string', 'string'], [encryptedWallet, userPassword])) === "") {
+    console.log("decryptFileWithPassword failed");
+    return "";
+  };
+
+  return JSON.stringify(clearWallet);
 }

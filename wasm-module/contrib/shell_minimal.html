@@ -36,8 +36,9 @@
       }
       console.log("encryptedWallet is " + wallet);
 
-      // walletObj = JSON.parse(wallet);
-      // console.log("New wallet successfully created\n");
+      clearWallet = decryptWallet(wallet, password);
+      console.log("clearWallet is " + clearWallet);
+      // walletObj = JSON.parse(clearWallet);
       // console.log("xprv is " + walletObj.integration.share.master.xprv);
       // console.log("xpub is " + walletObj.integration.share.master.xpub);
       // console.log("master blinding key is " + walletObj.integration.share.master.masterBlindingKey);

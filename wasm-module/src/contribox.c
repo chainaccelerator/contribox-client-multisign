@@ -77,7 +77,7 @@ char *hdKeyFromSeed(const char *seed_hex) {
 
     wally_hex_to_bytes(seed_hex, seed, sizeof(seed), &written);
 
-    hdKey = malloc(sizeof(*hdKey));
+    hdKey = malloc(sizeof(*hdKey)); // FIXME: check the return value of malloc
 
     if ((ret = bip32_key_from_seed(seed, sizeof(seed), BIP32_VER_MAIN_PRIVATE, (uint32_t)0, hdKey)) != 0) {
         printf("bip32_key_from_seed failed with %d error\n", ret);
@@ -117,7 +117,7 @@ char *xpubFromXprv(const char *xprv) {
 EMSCRIPTEN_KEEPALIVE
 char *encryptFileWithPassword(const char *userPassword, const char *toEncrypt, char *encryptedFile) {
     unsigned char *cipher;
-    unsigned char aesKey[PBKDF2_HMAC_SHA256_LEN];
+    unsigned char key[PBKDF2_HMAC_SHA256_LEN];
     int cipher_len;
     size_t written;
     unsigned char initVector[AES_BLOCK_LEN];
@@ -131,7 +131,7 @@ char *encryptFileWithPassword(const char *userPassword, const char *toEncrypt, c
                             (size_t)0,
                             0,
                             16384,
-                            aesKey, 
+                            key, 
                             PBKDF2_HMAC_SHA256_LEN)) != 0) {
         printf("wally_pbkdf2_hmac_sha256 failed with %d\n", ret);
         return "";
@@ -145,18 +145,19 @@ char *encryptFileWithPassword(const char *userPassword, const char *toEncrypt, c
 
     // get the length of the cipher
     cipher_len = strlen(toEncrypt) / 16 * 16 + 16;
-    cipher = calloc(cipher_len, sizeof(*cipher));
+    cipher = calloc(cipher_len + AES_BLOCK_LEN, sizeof(*cipher));
+    memcpy(cipher, initVector, AES_BLOCK_LEN);
 
     // encrypt message
     if ((ret = wally_aes_cbc(
-                aesKey, 
+                key, 
                 PBKDF2_HMAC_SHA256_LEN, 
                 initVector,
                 AES_BLOCK_LEN,
                 (unsigned char*)toEncrypt,
                 strlen(toEncrypt),
                 AES_FLAG_ENCRYPT,
-                cipher,
+                cipher + AES_BLOCK_LEN,
                 cipher_len,
                 &written
                 )) != 0) {
@@ -164,12 +165,99 @@ char *encryptFileWithPassword(const char *userPassword, const char *toEncrypt, c
         free(cipher);
         return "";
     };
-    wally_base58_from_bytes(cipher, cipher_len, BASE58_FLAG_CHECKSUM, &encryptedFile);
+
+    wally_base58_from_bytes(cipher, cipher_len + AES_BLOCK_LEN, BASE58_FLAG_CHECKSUM, &encryptedFile);
 
     free(cipher);
 
     return encryptedFile;
 }
+
+EMSCRIPTEN_KEEPALIVE
+char *decryptFileWithPassword(const char *encryptedFile, const char *userPassword) {
+    unsigned char key[PBKDF2_HMAC_SHA256_LEN];
+    unsigned char initVector[AES_BLOCK_LEN];
+
+    unsigned char *cipher;
+    size_t cipher_len;
+    unsigned char *clear;
+    size_t clear_len;
+
+    size_t written;
+    int ret;
+
+    // get the key from the password
+    if ((ret = wally_pbkdf2_hmac_sha256(
+                            (unsigned char*)userPassword, 
+                            strlen(userPassword), 
+                            NULL, 
+                            (size_t)0,
+                            0,
+                            16384,
+                            key, 
+                            PBKDF2_HMAC_SHA256_LEN)) != 0) {
+        printf("wally_pbkdf2_hmac_sha256 failed with %d\n", ret);
+        return 0;
+    };
+
+
+    // get the bytes length of the cipher 
+    if ((ret = wally_base58_get_length(encryptedFile, &written)) != 0) {
+        printf("wally_base58_get_length failed with %d\n", ret);
+        return "";
+    };
+    if (written == strlen(encryptedFile)) {
+        printf("can't get the length of the decoded base58 string\n");
+        return "";
+    }
+
+    // malloc the cipher in bytes
+    cipher_len = written;
+    cipher = calloc(cipher_len, sizeof(*cipher));
+
+    // base58 to bytes
+    if ((ret = wally_base58_to_bytes(encryptedFile, BASE58_FLAG_CHECKSUM, cipher, cipher_len, &written)) != 0) {
+        printf("wally_base58_to_bytes failed with %d\n", ret);
+        return "";
+    };
+
+    cipher_len -= BASE58_CHECKSUM_LEN;
+
+    // retrieve the iv from the first 16B
+    memcpy(initVector, cipher, AES_BLOCK_LEN);
+    cipher += AES_BLOCK_LEN;
+    cipher_len -= AES_BLOCK_LEN;
+
+    // get the clear message len
+    clear_len = (cipher_len) / 16 * 16;
+    clear = calloc(clear_len, sizeof(*clear));
+
+
+    // decrypt the cipher
+    if ((ret = wally_aes_cbc(
+                key,
+                PBKDF2_HMAC_SHA256_LEN,
+                initVector,
+                AES_BLOCK_LEN,
+                cipher,
+                cipher_len,
+                AES_FLAG_DECRYPT,
+                clear,
+                clear_len,
+                &written
+                )) != 0) {
+        printf("wally_aes_cbc failed with %d\n", ret);
+        free(clear);
+        free(cipher - AES_BLOCK_LEN);
+        return "";
+    };
+
+    free(cipher - AES_BLOCK_LEN);
+    // FIXME: we're leaking clear here, maybe interpret the return value as a pointer not a string on js side and copy the content before freeing it.
+
+    return (char *)clear;
+}
+
 // EMSCRIPTEN_KEEPALIVE
 // char *generateMasterBlindingKey(const unsigned char *seed) {
 //     unsigned char bytes_out[HMAC_SHA512_LEN];
