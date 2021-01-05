@@ -24,24 +24,34 @@ See the [API](https://wally.readthedocs.io/) documentation for more information.
 
 ## API call
 
-## new_wallet
+## init
 
 ### Inputs
 
-1. string `entropy`: 32 or 64B of entropy provided by the system. 
+1. None
 
 ### Outputs
 
-1. string `xpub`: a base 58 encoded version of the extended public key that can be used by other users to compute new addresses on behald of others.
-2. string `xprv`: a hex encoded version of the AES encrypted extended private key. It must be stored in the permanent storage of the browser, and only the user should be able to decrypt it.
-3. string `master_blinding_key`: a hex encoded version of the AES encrypted master blinding key, which allow to blind and unblind all the user's output. It must be stored in the browser permanent storage. For security reason, maybe we should share a clear version with trusted entities to prevent user being unable to unblind his own outputs if he loses this.
-4. (optional) string `mnemonic`: a 12 or 24 words phrase that can be written down and used as an optional backup system to restore lost `xprv` and `master_blinding_key`
+1. number `success`: if `0`, libwally is ready to go, any other value means something went wrong and none other calls can be made.
+
+## newWallet
+
+### Inputs
+
+1. string `userPassword`: password chosen by the user. 
+
+### Outputs
+
+1. string `encryptedWallet`: a base58 encoded string that contains the following data encrypted with AES:
+    * `xprv`: the private extended key.
+    * `mnemonic` (or seed words): 12 (or 24) words that allow user to restore his wallet, including the private keys and blinding keys.
+    * `masterBlindingKey`: the 64B key used to blind and unblind user's transactions.
 
 ### Description
 
-`new_wallet` is the first API call that must be made, since it generates all the cryptographic material we need for the subsequent steps.
+`newWallet` is the first API call that must be made, since it generates all the cryptographic material we need for the subsequent steps.
 
-It takes the given entropy and uses it to generate a seed (a `mnemonic` is basically a human-readable version of this), and from this seed an extended private key. 
+It generates a seed (a `mnemonic` is basically a human-readable version of this), and from this seed an extended private key. 
 
 From this key it is possible to derivate a virtually unlimited number of new key pairs. 
 
@@ -50,6 +60,8 @@ From this key it is possible to derivate a virtually unlimited number of new key
 `xpub` is relatively less critical, having it would allow an attacker to derive all the pubkeys (hence the address) of the user. This could be a privacy issue, but since we blind everything and use a lot of multisig (which hides the participants pubkey as long as it is not spent), I don't think this is a concern here, that's why this is not returned encrypted. 
 
 `master_blinding_key` should be protected, as compromising it wouldn't be as bad as the `xprv`, but would allow the attacker to unblind all the users' output.
+
+It uses `userPassword` to encrypt the wallet data (AES CBC), and returns the cipher encoded in a base 58 string.
 
 ## new_address
 
