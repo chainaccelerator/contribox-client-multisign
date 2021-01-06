@@ -128,3 +128,29 @@ It uses `userPassword` to encrypt the wallet data (AES CBC), and returns the cip
 ### Outputs
 
 1. string `signed_tx`: hex encoded signed transaction
+
+## getXpub
+
+### Inputs
+
+1. string `encryptedWallet`: return of `newWallet`.
+2. string `password`: password used for creating `encryptedWallet`.
+
+### Outputs
+
+1. string `xpub`: the extended master pubkey, can be used by the user or other users to generate address.
+
+## getMnemonic
+
+### Inputs
+
+1. string `encryptedWallet`: return of `newWallet`.
+2. string `password`: password used for creating `encryptedWallet`.
+
+### Outputs
+
+1. string `mnemonic`: the seed words used to restore the wallet in case the `encryptedWallet` is lost.
+
+### Notes
+
+`mnemonic` is highly sensitive information, and must be shown to user and immediately erased from memory. It must not be saved on disk.
