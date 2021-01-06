@@ -57,9 +57,10 @@ RUN ${SOURCE_EMSDK} && emcc \
     -s "EXTRA_EXPORTED_RUNTIME_METHODS=$EXTRA_EXPORTED_RUNTIME_METHODS" \
     -s "EXPORTED_FUNCTIONS=$EXPORTED_FUNCTIONS" \
     -D BUILD_ELEMENTS=1 \
+    --embed-file test/bip39_test_vectors.json \
     src/contribox.c \
     -Llibwally/src/.libs -lwallycore \
     -Llibwally/src/secp256k1/.libs -lsecp256k1 \
-    -o contribox.html \
-    --shell-file contrib/shell_minimal.html
+    -o test/test.html \
+    --shell-file contrib/test.html
 ENTRYPOINT [ "python3", "-m", "http.server" ]
