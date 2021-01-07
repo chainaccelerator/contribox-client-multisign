@@ -1,9 +1,3 @@
-function free_all(ptrs) {
-  for (i = 0; i < ptrs.length; i++) {
-    Module._free(ptrs[i]);
-  };
-}
-
 function hexStringToByte(str) {
   if (!str) {
     return new Uint8Array();
@@ -121,8 +115,23 @@ function newWallet(userPassword) {
 function restoreWallet(userPassword, mnemonic) {
   return generateWallet(userPassword, mnemonic);
 }
+
 function decryptWallet(encryptedWallet, userPassword) {
-  console.log("Entering decryptWallet");
+  if ((clear_len = ccall('getClearLenFromCipher', 'number', ['string'], [encryptedWallet])) <= 0) {
+    console.log("getClearLenFromCipher failed");
+    return "";
+  };
+  let clearWallet_ptr = Module._malloc(clear_len);
+  if ((clearWallet = ccall('decryptFileWithPassword', 'string', ['string', 'string', 'number'], [encryptedWallet, userPassword, clearWallet_ptr])) === "") {
+    console.log("decryptFileWithPassword failed");
+    return "";
+  };
+
+  Module._free(clearWallet_ptr);
+
+  return clearWallet;
+}
+
 
   if ((clearWallet = ccall('decryptFileWithPassword', 'string', ['string', 'string'], [encryptedWallet, userPassword])) === "") {
     console.log("decryptFileWithPassword failed");

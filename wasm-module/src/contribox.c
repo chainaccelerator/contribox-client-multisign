@@ -181,13 +181,35 @@ char *encryptFileWithPassword(const char *userPassword, const char *toEncrypt, c
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *decryptFileWithPassword(const char *encryptedFile, const char *userPassword) {
+size_t getClearLenFromCipher(const char *encryptedFile) {
+    size_t written;
+    int ret;
+
+    // get the bytes length of the cipher 
+    if ((ret = wally_base58_get_length(encryptedFile, &written)) != 0) {
+        printf("wally_base58_get_length failed with %d\n", ret);
+        return -1;
+    };
+    if (written == strlen(encryptedFile)) {
+        printf("can't get the length of the decoded base58 string\n");
+        return -1;
+    }
+
+    written -= BASE58_CHECKSUM_LEN; 
+    written -= AES_BLOCK_LEN;
+    written /= 16;
+    written *= 16;
+
+    return written;
+}
+
+EMSCRIPTEN_KEEPALIVE
+char *decryptFileWithPassword(const char *encryptedFile, const char *userPassword, unsigned char *clear) {
     unsigned char key[PBKDF2_HMAC_SHA256_LEN];
     unsigned char initVector[AES_BLOCK_LEN];
 
     unsigned char *cipher;
     size_t cipher_len;
-    unsigned char *clear;
     size_t clear_len;
 
     size_t written;
@@ -260,7 +282,6 @@ char *decryptFileWithPassword(const char *encryptedFile, const char *userPasswor
     };
 
     free(cipher - AES_BLOCK_LEN);
-    // FIXME: we're leaking clear here, maybe interpret the return value as a pointer not a string on js side and copy the content before freeing it.
 
     return (char *)clear;
 }
