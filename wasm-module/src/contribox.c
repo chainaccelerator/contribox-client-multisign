@@ -84,7 +84,10 @@ char *hdKeyFromSeed(const char *seed_hex) {
 
     wally_hex_to_bytes(seed_hex, seed, sizeof(seed), &written);
 
-    hdKey = malloc(sizeof(*hdKey)); // FIXME: check the return value of malloc
+    if (!(hdKey = malloc(sizeof(*hdKey)))) {
+        printf("Memory allocation error\n");
+        return "";
+    }; 
 
     if ((ret = bip32_key_from_seed(seed, sizeof(seed), BIP32_VER_MAIN_PRIVATE, (uint32_t)0, hdKey)) != 0) {
         printf("bip32_key_from_seed failed with %d error\n", ret);
@@ -107,9 +110,15 @@ char *xpubFromXprv(const char *xprv) {
     struct ext_key *hdKey;
     int ret;
 
-    hdKey = malloc(sizeof(*hdKey));
+    if (!(hdKey = malloc(sizeof(*hdKey)))) {
+        printf("Memory allocation error\n");
+        return "";
+    }; 
 
-    bip32_key_from_base58(xprv, hdKey);
+    if ((ret = bip32_key_from_base58(xprv, hdKey)) != 0) {
+        printf("bip32_key_from_base58");
+        return "";
+    };
 
     if ((ret = bip32_key_to_base58(hdKey, BIP32_FLAG_KEY_PUBLIC, &xpub)) != 0) {
         printf("bip32_key_to_base58 failed");
@@ -152,7 +161,10 @@ char *encryptFileWithPassword(const char *userPassword, const char *toEncrypt, c
 
     // get the length of the cipher
     cipher_len = strlen(toEncrypt) / 16 * 16 + 16;
-    cipher = calloc(cipher_len + AES_BLOCK_LEN, sizeof(*cipher));
+    if (!(cipher = calloc(cipher_len + AES_BLOCK_LEN, sizeof(*cipher)))) {
+        printf("Memory allocation error\n");
+        return "";
+    };
     memcpy(cipher, initVector, AES_BLOCK_LEN);
 
     // encrypt message
@@ -173,7 +185,11 @@ char *encryptFileWithPassword(const char *userPassword, const char *toEncrypt, c
         return "";
     };
 
-    wally_base58_from_bytes(cipher, cipher_len + AES_BLOCK_LEN, BASE58_FLAG_CHECKSUM, &encryptedFile);
+    if ((ret = wally_base58_from_bytes(cipher, cipher_len + AES_BLOCK_LEN, BASE58_FLAG_CHECKSUM, &encryptedFile)) != 0) {
+        printf("wally_base58_from_bytes failed\n");
+        free(cipher);
+        return "";
+    };
 
     free(cipher);
 
@@ -242,7 +258,10 @@ char *decryptFileWithPassword(const char *encryptedFile, const char *userPasswor
 
     // malloc the cipher in bytes
     cipher_len = written;
-    cipher = calloc(cipher_len, sizeof(*cipher));
+    if (!(cipher = calloc(cipher_len, sizeof(*cipher)))) {
+        printf("Memory allocation error\n");
+        return "";
+    };
 
     // base58 to bytes
     if ((ret = wally_base58_to_bytes(encryptedFile, BASE58_FLAG_CHECKSUM, cipher, cipher_len, &written)) != 0) {
@@ -259,8 +278,10 @@ char *decryptFileWithPassword(const char *encryptedFile, const char *userPasswor
 
     // get the clear message len
     clear_len = (cipher_len) / 16 * 16;
-    clear = calloc(clear_len, sizeof(*clear));
-
+    if (!(clear = calloc(clear_len, sizeof(*clear)))) {
+        printf("Memory allocation error\n");
+        return "";
+    };
 
     // decrypt the cipher
     if ((ret = wally_aes_cbc(
