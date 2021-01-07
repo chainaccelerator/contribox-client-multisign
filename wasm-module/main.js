@@ -105,7 +105,7 @@ function newWallet(userPassword) {
     return "";
   }
 
-  // TODO: overwrite the entropy array with 0
+  window.crypto.getRandomValues(entropy);
   // Optional: show the seed words to the user.
   alert("Ceci est la phrase de restauration de votre wallet,\nveuillez la noter soigneusement avant de fermer cette fenêtre.\n" + mnemonic);
 
