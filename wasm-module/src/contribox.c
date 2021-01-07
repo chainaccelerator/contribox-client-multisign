@@ -49,6 +49,9 @@ char *generateSeed(const char *mnemonic) {
     }
 
     wally_hex_from_bytes(seed, sizeof(seed), &seed_hex);
+
+    memset(&seed, '\0', sizeof(seed));
+
     return seed_hex;
 }
 
@@ -68,6 +71,8 @@ char *generateMasterBlindingKey(const char *seed_hex) {
         printf("wally_asset_blinding_key_from_seed failed with %d error code\n", ret);
         return "";
     }
+
+    memset(&seed, '\0', sizeof(seed));
 
     wally_hex_from_bytes(bytes_out, sizeof(bytes_out), &masterBlindingKey);
 
@@ -94,11 +99,14 @@ char *hdKeyFromSeed(const char *seed_hex) {
         return "";
     } 
 
+    memset(&seed, '\0', sizeof(seed));
+
     if ((ret = bip32_key_to_base58(hdKey, BIP32_FLAG_KEY_PRIVATE, &xprv)) != 0) {
         printf("bip32_key_to_base58");
         return "";
     };
 
+    memset(hdKey, '\0', sizeof(*hdKey));
     free(hdKey);
 
     return xprv;
@@ -125,6 +133,7 @@ char *xpubFromXprv(const char *xprv) {
         return "";
     };
 
+    memset(hdKey, '\0', sizeof(*hdKey));
     free(hdKey);
 
     return xpub;
@@ -184,6 +193,7 @@ char *encryptFileWithPassword(const char *userPassword, const char *toEncrypt, c
         free(cipher);
         return "";
     };
+    memset(&key, '\0', sizeof(key));
 
     if ((ret = wally_base58_from_bytes(cipher, cipher_len + AES_BLOCK_LEN, BASE58_FLAG_CHECKSUM, &encryptedFile)) != 0) {
         printf("wally_base58_from_bytes failed\n");
@@ -301,6 +311,7 @@ char *decryptFileWithPassword(const char *encryptedFile, const char *userPasswor
         free(cipher - AES_BLOCK_LEN);
         return "";
     };
+    memset(&key, '\0', sizeof(key));
 
     free(cipher - AES_BLOCK_LEN);
 
