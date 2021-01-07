@@ -48,7 +48,7 @@ function generateWallet(userPassword, mnemonic) {
       seedWords: "",
       masterBlindingKey: ""
   }
-  
+
   // generate the seed from the mnemonic
   if ((seed_hex = ccall('generateSeed', 'string', ['string'], [mnemonic])) === "") {
     console.log("generateMnemonic failed");
@@ -132,11 +132,29 @@ function decryptWallet(encryptedWallet, userPassword) {
   return clearWallet;
 }
 
+function getXpub(encryptedWallet, userPassword) {
+  if ((clearWallet = decryptWallet(encryptedWallet, userPassword)) === "") {
+    console.log("decryptWallet failed");
+    return "";
+  }
+  
+  let wallet_obj = JSON.parse(clearWallet);
 
-  if ((clearWallet = ccall('decryptFileWithPassword', 'string', ['string', 'string'], [encryptedWallet, userPassword])) === "") {
-    console.log("decryptFileWithPassword failed");
+  if ((xpub = ccall('xpubFromXprv', 'string', ['string'], [wallet_obj.xprv])) === "") {
+    console.log("xpubFromXprv failed");
     return "";
   };
 
-  return JSON.stringify(clearWallet);
+  return xpub;
+}
+
+function getSeed(encryptedWallet, userPassword) {
+  if ((clearWallet = decryptWallet(encryptedWallet, userPassword)) === "") {
+    console.log("decryptWallet failed");
+    return "";
+  }
+  
+  let wallet_obj = JSON.parse(clearWallet);
+
+  return wallet_obj.seedWords;
 }

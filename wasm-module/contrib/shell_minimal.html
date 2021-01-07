@@ -36,8 +36,16 @@
       }
       console.log("encryptedWallet is " + wallet);
 
-      clearWallet = decryptWallet(wallet, password);
-      console.log("clearWallet is " + clearWallet);
+      xpub = getXpub(wallet, password);
+      console.log("xpub is " + xpub);
+      mnemonic = getSeed(wallet, password);
+      console.log("seed words are " + mnemonic);
+
+      restored = restoreWallet(password, mnemonic);
+      restoredXpub = getXpub(restored, password);
+      if (restoredXpub.localeCompare(xpub) === 0) {
+        console.log("restored wallet is OK ");
+      }
       // walletObj = JSON.parse(clearWallet);
       // console.log("xprv is " + walletObj.integration.share.master.xprv);
       // console.log("xpub is " + walletObj.integration.share.master.xpub);

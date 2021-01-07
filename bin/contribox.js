@@ -1805,9 +1805,6 @@ var _generateSeed = Module["_generateSeed"] = createExportWrapper("generateSeed"
 var _generateMasterBlindingKey = Module["_generateMasterBlindingKey"] = createExportWrapper("generateMasterBlindingKey");
 
 /** @type {function(...*):?} */
-var _wally_asset_blinding_key_from_seed = Module["_wally_asset_blinding_key_from_seed"] = createExportWrapper("wally_asset_blinding_key_from_seed");
-
-/** @type {function(...*):?} */
 var _hdKeyFromSeed = Module["_hdKeyFromSeed"] = createExportWrapper("hdKeyFromSeed");
 
 /** @type {function(...*):?} */
@@ -1821,6 +1818,9 @@ var _xpubFromXprv = Module["_xpubFromXprv"] = createExportWrapper("xpubFromXprv"
 
 /** @type {function(...*):?} */
 var _encryptFileWithPassword = Module["_encryptFileWithPassword"] = createExportWrapper("encryptFileWithPassword");
+
+/** @type {function(...*):?} */
+var _getClearLenFromCipher = Module["_getClearLenFromCipher"] = createExportWrapper("getClearLenFromCipher");
 
 /** @type {function(...*):?} */
 var _decryptFileWithPassword = Module["_decryptFileWithPassword"] = createExportWrapper("decryptFileWithPassword");
