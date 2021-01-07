@@ -7,6 +7,7 @@ build:
 
 test:
 	docker build -f wasm-module/docker/libwally-core-test.dockerfile --build-arg=LIBWALLY_CORE_VERSION=$(LIBWALLY_VERSION) . -t libwally-wasm-test:${LIBWALLY_VERSION}
+	# docker build --no-cache -f wasm-module/docker/libwally-core-test.dockerfile --build-arg=LIBWALLY_CORE_VERSION=$(LIBWALLY_VERSION) . -t libwally-wasm-test:${LIBWALLY_VERSION}
 
 bin:
 	mkdir ./bin

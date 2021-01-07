@@ -48,31 +48,13 @@ function init() {
   return 0;
 }
 
-function newWallet(userPassword) {
-  console.log("Creating new wallet");
-  let ptrs = [];
+function generateWallet(userPassword, mnemonic) {
   let Wallet = {
-    master: {
       xprv: "",
-      range: [],
       seedWords: "",
-      masterBlindingKey: "",
-    }
+      masterBlindingKey: ""
   }
   
-  // First generate some entropy to generate the seed
-  let entropy = new Uint8Array(32); // BIP39_ENTROPY_LEN_256
-  window.crypto.getRandomValues(entropy);
-
-  // generate a mnemonic (seed words) from this entropy
-  if ((mnemonic = ccall('generateMnemonic', 'string', ['array', 'number'], [entropy, entropy.length])) === "") {
-    console.log("generateMnemonic failed");
-    return "";
-  }
-
-  // Optional: show the seed words to the user.
-  alert("Ceci est la phrase de restauration de votre wallet,\nveuillez la noter soigneusement avant de fermer cette fenêtre.\n" + mnemonic);
-
   // generate the seed from the mnemonic
   if ((seed_hex = ccall('generateSeed', 'string', ['string'], [mnemonic])) === "") {
     console.log("generateMnemonic failed");
@@ -92,13 +74,12 @@ function newWallet(userPassword) {
   }
 
   // write all the relevant data to our wallet obj
-  Wallet.master.xprv = xprv;
-  Wallet.master.masterBlindingKey= masterBlindingKey_hex;
-  Wallet.master.seedWords = mnemonic;
+  Wallet.xprv = xprv;
+  Wallet.masterBlindingKey= masterBlindingKey_hex;
+  Wallet.seedWords = mnemonic;
   
   // Encrypt the wallet in Json form with user password
   let encryptedWallet_ptr = Module._malloc(32);
-  ptrs.push(encryptedWallet_ptr);
   if ((encryptedWallet = ccall('encryptFileWithPassword', 'string', ['string', 'string', 'number'], [userPassword, JSON.stringify(Wallet), encryptedWallet_ptr])) === "") {
     console.log("encryptFileWithPassword failed");
     return "";
@@ -111,12 +92,35 @@ function newWallet(userPassword) {
   }
 
   // free the string we malloced here
-  free_all(ptrs)
+  Module._free(encryptedWallet_ptr);
 
   // return the wallet obj in JSON format
   return encryptedWallet;
 }
 
+function newWallet(userPassword) {
+  console.log("Creating new wallet");
+
+  // First generate some entropy to generate the seed
+  let entropy = new Uint8Array(32); // BIP39_ENTROPY_LEN_256
+  window.crypto.getRandomValues(entropy);
+
+  // generate a mnemonic (seed words) from this entropy
+  if ((mnemonic = ccall('generateMnemonic', 'string', ['array', 'number'], [entropy, entropy.length])) === "") {
+    console.log("generateMnemonic failed");
+    return "";
+  }
+
+  // TODO: overwrite the entropy array with 0
+  // Optional: show the seed words to the user.
+  alert("Ceci est la phrase de restauration de votre wallet,\nveuillez la noter soigneusement avant de fermer cette fenêtre.\n" + mnemonic);
+
+  return generateWallet(userPassword, mnemonic);
+}
+
+function restoreWallet(userPassword, mnemonic) {
+  return generateWallet(userPassword, mnemonic);
+}
 function decryptWallet(encryptedWallet, userPassword) {
   console.log("Entering decryptWallet");
 
