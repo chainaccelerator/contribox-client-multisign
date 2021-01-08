@@ -50,20 +50,38 @@ function generateWallet(userPassword, mnemonic) {
   }
 
   // generate the seed from the mnemonic
-  if ((seed_hex = ccall('generateSeed', 'string', ['string'], [mnemonic])) === "") {
+  let seed_hex_ptr = Module._malloc(32);
+  if ((seed_hex = ccall('generateSeed', 'string', ['string', 'number'], [mnemonic, seed_hex_ptr])) === "") {
     console.log("generateMnemonic failed");
     return "";
   }
 
+  if (ccall('wally_free_string', 'number', ['number'], [seed_hex_ptr]) !== 0) {
+    console.log("seed_hex_ptr wasn't freed");
+    return "";
+  }
+
   // generate a master key and serialize extended keys to base58
-  if ((xprv = ccall('hdKeyFromSeed', 'string', ['string'], [seed_hex])) === "") {
+  let xprv_ptr = Module._malloc(32);
+  if ((xprv = ccall('hdKeyFromSeed', 'string', ['string', 'number'], [seed_hex, xprv_ptr])) === "") {
     console.log("hdKeyFromSeed failed");
     return "";
   }
 
+  if (ccall('wally_free_string', 'number', ['number'], [xprv_ptr]) !== 0) {
+    console.log("xprv_ptr wasn't freed");
+    return "";
+  }
+
   // We compute the master blinding key
-  if ((masterBlindingKey_hex = ccall('generateMasterBlindingKey', 'string', ['string'], [seed_hex])) === "") {
+  let masterBlindingKey_ptr = Module._malloc(32);
+  if ((masterBlindingKey_hex = ccall('generateMasterBlindingKey', 'string', ['string', 'number'], [seed_hex, masterBlindingKey_ptr])) === "") {
     console.log("generateMasterBlindingKey failed");
+    return "";
+  }
+
+  if (ccall('wally_free_string', 'number', ['number'], [masterBlindingKey_ptr]) !== 0) {
+    console.log("masterBlindingKey_ptr wasn't freed");
     return "";
   }
 
@@ -85,9 +103,6 @@ function generateWallet(userPassword, mnemonic) {
     return "";
   }
 
-  // free the string we malloced here
-  Module._free(encryptedWallet_ptr);
-
   // return the wallet obj in JSON format
   return encryptedWallet;
 }
@@ -99,9 +114,17 @@ function newWallet(userPassword) {
   let entropy = new Uint8Array(32); // BIP39_ENTROPY_LEN_256
   window.crypto.getRandomValues(entropy);
 
+  // allocate memory for the mnemonic (to be freed later)
+  let mnemonic_ptr = Module._malloc(32);
+
   // generate a mnemonic (seed words) from this entropy
-  if ((mnemonic = ccall('generateMnemonic', 'string', ['array', 'number'], [entropy, entropy.length])) === "") {
+  if ((mnemonic = ccall('generateMnemonic', 'string', ['array', 'number', 'number'], [entropy, entropy.length, mnemonic_ptr])) === "") {
     console.log("generateMnemonic failed");
+    return "";
+  }
+
+  if (ccall('wally_free_string', 'number', ['number'], [mnemonic_ptr]) !== 0) {
+    console.log("mnemonic wasn't freed");
     return "";
   }
 
@@ -140,10 +163,16 @@ function getXpub(encryptedWallet, userPassword) {
   
   let wallet_obj = JSON.parse(clearWallet);
 
-  if ((xpub = ccall('xpubFromXprv', 'string', ['string'], [wallet_obj.xprv])) === "") {
+  let xpub_ptr = Module._malloc(32);
+  if ((xpub = ccall('xpubFromXprv', 'string', ['string', 'number'], [wallet_obj.xprv, xpub_ptr])) === "") {
     console.log("xpubFromXprv failed");
     return "";
   };
+
+  if (ccall('wally_free_string', 'number', ['number'], [xpub_ptr]) !== 0) {
+    console.log("xpub wasn't freed");
+    return "";
+  }
 
   return xpub;
 }

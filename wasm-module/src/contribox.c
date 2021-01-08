@@ -20,23 +20,22 @@ int is_elements() {
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *generateMnemonic(const unsigned char *entropy, size_t entropy_len) {
-    char *mnemonic;
+char *generateMnemonic(const unsigned char *entropy, size_t entropy_len, char *mnemonic) {
     int ret;
 
     if ((ret = bip39_mnemonic_from_bytes(NULL, entropy, entropy_len, &mnemonic)) != 0) {
         printf("mnemonic generation failed with %d error code\n", ret);
         return "";
     }
+    
     return mnemonic;
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *generateSeed(const char *mnemonic) {
+char *generateSeed(const char *mnemonic, char *seed_hex) {
     int ret;
     size_t written;
     unsigned char seed[BIP39_SEED_LEN_512];
-    char *seed_hex;
 
     if ((ret = bip39_mnemonic_to_seed(mnemonic, NULL, seed, sizeof(seed), &written)) != 0) {
         printf("bip39_mnemonic_to_seed failed with %d error code\n", ret);
@@ -48,18 +47,17 @@ char *generateSeed(const char *mnemonic) {
         return "";
     }
 
-    wally_hex_from_bytes(seed, sizeof(seed), &seed_hex);
+    wally_hex_from_bytes(seed, BIP39_SEED_LEN_512, &seed_hex);
 
-    memset(&seed, '\0', sizeof(seed));
+    memset(&seed, '\0', BIP39_SEED_LEN_512);
 
     return seed_hex;
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *generateMasterBlindingKey(const char *seed_hex) {
+char *generateMasterBlindingKey(const char *seed_hex, char *masterBlindingKey) {
     unsigned char bytes_out[HMAC_SHA512_LEN];
     unsigned char seed[BIP39_SEED_LEN_512];
-    char *masterBlindingKey;
     int ret;
     size_t written;
 
@@ -80,8 +78,7 @@ char *generateMasterBlindingKey(const char *seed_hex) {
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *hdKeyFromSeed(const char *seed_hex) {
-    char *xprv;
+char *hdKeyFromSeed(const char *seed_hex, char *xprv) {
     struct ext_key *hdKey;
     unsigned char seed[BIP39_SEED_LEN_512];
     size_t written;
@@ -113,8 +110,7 @@ char *hdKeyFromSeed(const char *seed_hex) {
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *xpubFromXprv(const char *xprv) {
-    char *xpub;
+char *xpubFromXprv(const char *xprv, char *xpub) {
     struct ext_key *hdKey;
     int ret;
 
