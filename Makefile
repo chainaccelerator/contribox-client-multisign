@@ -16,6 +16,9 @@ bin:
 	docker cp libwally:/src/contribox/contribox.js ./bin/
 	docker rm libwally
 
+start:
+	docker run --rm -p 8000:8000 libwally-wasm:${LIBWALLY_VERSION}
+
 clean:
 	docker rmi -f libwally-wasm:${LIBWALLY_VERSION}
 	docker rmi -f libwally-wasm-test:${LIBWALLY_VERSION}

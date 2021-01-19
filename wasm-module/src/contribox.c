@@ -6,6 +6,27 @@
 
 // FIXME: set all the memory that contains private material to zero when it's not used anymore
 
+unsigned char *convertHexToBytes(const char *hexstring, size_t *bytes_len) {
+    /* takes a hexstring, allocates and returns a bytes array */
+    unsigned char *bytes;
+    int ret;
+    size_t written;
+
+    *bytes_len = strlen(hexstring) / 2;
+    if (!(bytes = malloc(*bytes_len))) {
+        printf("Memory allocation error\n");
+        return NULL;
+    }
+
+    if ((ret = wally_hex_to_bytes(hexstring, bytes, *bytes_len, &written)) != 0) {
+        printf("wally_hex_to_bytes failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    return bytes;
+}
+
+
 EMSCRIPTEN_KEEPALIVE
 int is_elements() {
     int ret;
@@ -312,4 +333,77 @@ char *decryptFileWithPassword(const char *encryptedFile, const char *userPasswor
     free(cipher - AES_BLOCK_LEN);
 
     return (char *)clear;
+}
+
+EMSCRIPTEN_KEEPALIVE
+char *getBlindingKeyFromScript(const char *scriptPubkey, const char *masterBlindingKey, char *privateBlindingKey) {
+    unsigned char private[EC_PRIVATE_KEY_LEN];
+    unsigned char *assetBlindingKey;
+    unsigned char *script;
+    size_t script_len;
+    size_t key_len; // HMAC_SHA512_LEN
+    int ret;
+    size_t written;
+
+    // convert script pubkey to bytes
+    if (!(script = convertHexToBytes(scriptPubkey, &script_len))) {
+        printf("convertHexToBytes failed\n");
+        return "";
+    }
+
+    // convert master blinding key to bytes
+    if (!(assetBlindingKey = convertHexToBytes(masterBlindingKey, &key_len))) {
+        printf("convertHexToBytes failed\n");
+        return "";
+    }
+
+    // compute the private blinding key
+    if ((ret = wally_asset_blinding_key_to_ec_private_key(assetBlindingKey, HMAC_SHA512_LEN, script, script_len, private, EC_PRIVATE_KEY_LEN)) != 0) {
+        printf("wally_asset_blinding_key_to_ec_private_key failed with %d error code\n", ret);
+        return "";
+    }
+
+    // convert the private key to hex string
+    if ((ret = wally_hex_from_bytes(private, EC_PRIVATE_KEY_LEN, &privateBlindingKey)) != 0) {
+        printf("wally_hex_from_bytes failed with %d error code\n", ret);
+        return "";
+    }
+
+    memset(&private, '\0', EC_PRIVATE_KEY_LEN);
+
+    free(script);
+    free(assetBlindingKey);
+    
+    return privateBlindingKey;
+}
+
+EMSCRIPTEN_KEEPALIVE
+char *getAddressFromScript(const char *scriptPubkey, char *address) {
+    unsigned char *script;
+    unsigned char program[WALLY_SCRIPTPUBKEY_P2WSH_LEN];
+    size_t script_len;
+    size_t written;
+    int ret;
+
+    // convert script pubkey to bytes
+    if (!(script = convertHexToBytes(scriptPubkey, &script_len))) {
+        printf("convertHexToBytes failed\n");
+        return "";
+    }
+
+    // create the witness program from the script
+    if ((ret = wally_witness_program_from_bytes(script, script_len, WALLY_SCRIPT_SHA256, program, WALLY_SCRIPTPUBKEY_P2WSH_LEN, &written)) != 0) {
+        printf("wally_witness_program_from_bytes failed with %d error code\n", ret);
+        return "";
+    }
+
+    // create the unconfidential address from program
+    if ((ret = wally_addr_segwit_from_bytes(program, WALLY_SCRIPTPUBKEY_P2WSH_LEN, UNCONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST, 0, &address)) != 0) {
+        printf("wally_addr_segwit_from_bytes failed with %d error code\n", ret);
+        return "";
+    }
+
+    free(script);
+
+    return address;
 }

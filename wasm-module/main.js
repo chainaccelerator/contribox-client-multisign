@@ -111,6 +111,7 @@ function newWallet(userPassword) {
   console.log("Creating new wallet");
 
   // First generate some entropy to generate the seed
+  // FIXME: maybe it could be safer to move entropy generation on the wasm module side
   let entropy = new Uint8Array(32); // BIP39_ENTROPY_LEN_256
   window.crypto.getRandomValues(entropy);
 
@@ -128,9 +129,8 @@ function newWallet(userPassword) {
     return "";
   }
 
+  // Overwrite the entropy used since we don't need it anymore
   window.crypto.getRandomValues(entropy);
-  // Optional: show the seed words to the user.
-  alert("Ceci est la phrase de restauration de votre wallet,\nveuillez la noter soigneusement avant de fermer cette fenêtre.\n" + mnemonic);
 
   return generateWallet(userPassword, mnemonic);
 }
@@ -199,4 +199,52 @@ function getSeed(encryptedWallet, userPassword) {
   let wallet_obj = JSON.parse(clearWallet);
 
   return wallet_obj.seedWords;
+}
+
+function newConfidentialAddress(script, encryptedWallet, userPassword) {
+  // get the master blinding key
+  if ((clearWallet = decryptWallet(encryptedWallet, userPassword)) === "") {
+    console.log("decryptWallet failed");
+    return "";
+  }
+  
+  let masterBlindingKey;
+  {
+    let wallet_obj = JSON.parse(clearWallet);
+    masterBlindingKey = wallet_obj.masterBlindingKey;
+  }
+
+  console.log("master blinding key is " + masterBlindingKey);
+
+  // get the blinding key
+  let privateBlindingKey_ptr = Module._malloc(32);
+  if ((privateBlindingKey = ccall('getBlindingKeyFromScript', 'string', ['string', 'string', 'number'], [script, masterBlindingKey, privateBlindingKey_ptr])) === "") {
+    console.log("getBlindingKeyFromScript failed");
+    return "";
+  }
+
+  // get the unconfidential address
+  let address_ptr = Module._malloc(32);
+  if ((address = ccall('getAddressFromScript', 'string', ['string', 'number'], [script, address_ptr])) === "") {
+    console.log("getaddressFromScript failed");
+    return "";
+  }
+
+  let confidentialInfo = {
+    confidentialAddress: "",
+    privateBlindingKey: privateBlindingKey,
+    unconfidentialAddress: address
+  }
+
+  if (ccall('wally_free_string', 'number', ['number'], [privateBlindingKey_ptr]) !== 0) {
+    console.log("private blinding key wasn't freed");
+    return "";
+  }
+  if (ccall('wally_free_string', 'number', ['number'], [address_ptr]) !== 0) {
+    console.log("address wasn't freed");
+    return "";
+  }
+
+  return JSON.stringify(confidentialInfo);
+
 }
