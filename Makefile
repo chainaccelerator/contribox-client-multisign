@@ -1,5 +1,6 @@
 .DEFAULT_GOAL := build
 LIBWALLY_VERSION?=0.8.1
+MINSC_VERSION?=master
 
 build:
 	docker build -f wasm-module/docker/libwally-core-builder.dockerfile --build-arg=LIBWALLY_CORE_VERSION=$(LIBWALLY_VERSION) . -t libwally-wasm:${LIBWALLY_VERSION}
@@ -15,6 +16,14 @@ bin:
 	docker cp libwally:/src/contribox/contribox.wasm ./bin/
 	docker cp libwally:/src/contribox/contribox.js ./bin/
 	docker rm libwally
+minsc-bin:
+	mkdir ./minsc_bin
+	docker create --name minsc minsc-wasm:${MINSC_VERSION}
+	docker cp minsc:/usr/local/bin/minsc ./minsc_bin/minsc
+	docker rm minsc
+
+minsc: 
+	docker build -f wasm-module/docker/minsc.dockerfile --build-arg=MINSC_VERSION=$(MINSC_VERSION) . -t minsc-wasm:${MINSC_VERSION}
 
 start:
 	docker run --rm -p 8000:8000 libwally-wasm:${LIBWALLY_VERSION}
@@ -26,4 +35,4 @@ clean:
 deep-clean:
 	yes | docker system prune --all
 
-.PHONY: build clean builder deep-clean test
+.PHONY: build clean builder deep-clean test minsc bin

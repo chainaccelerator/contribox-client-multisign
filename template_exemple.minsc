@@ -1,0 +1,97 @@
+// This is a comment
+// It would describe the organisation whose template is expressed below, 
+// maybe add a few relevant legal information.
+
+// This is the fixed part of the template that containall xpubs relative to the organisation
+A=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/0;
+B=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/1;
+C=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/2;
+D=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/3;
+E=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/4;
+F=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/5;
+G=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/6;
+H=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/7;
+I=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/8;
+J=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/9;
+K=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/10;
+L=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/11;
+M=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/12;
+N=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/13;
+O=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/14;
+P=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/15;
+AA=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/16;
+AB=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/17;
+AC=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/18;
+AD=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/19;
+AE=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/20;
+AF=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/21;
+AG=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/22;
+AI=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/23;
+AJ=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/24;
+AK=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/25;
+AL=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/26;
+AM=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/27;
+AN=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/28;
+AO=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/29;
+AP=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/30;
+BA=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/31;
+BB=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/32;
+BC=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/33;
+BD=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/34;
+BE=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/35;
+BF=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/36;
+BG=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/37;
+BI=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/38;
+BJ=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/39;
+BK=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/40;
+BL=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/41;
+BM=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/42;
+BN=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/43;
+BO=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/44;
+BP=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/45;
+CA=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/46;
+CB=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/47;
+CC=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/48;
+CD=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/49;
+CE=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/50;
+CF=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/51;
+CG=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/52;
+CI=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/53;
+CJ=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/54;
+CK=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/55;
+CL=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/56;
+CM=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/57;
+CN=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/58;
+CO=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/59;
+CP=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/60;
+$timeout  = older(300 blocks);
+$parents1 = [ pk(A), pk(B), pk(C) ];
+$board1 = [ pk(D), pk(E), pk(F) ];
+$cosigners1 = [ pk(G), pk(I), pk(J) ];
+$members1 = [ pk(K), pk(L), pk(M) ];
+$witness1 = [ pk(N), pk(O), pk(P) ];
+$org1 = all($parents1) && thresh(2, $board1) && all($cosigners1) &&  (any($members1) || $timeout);
+$parents2 = [ pk(AA), pk(AB), pk(AC) ];
+$board2 = [ pk(AD), pk(AE), pk(AF) ];
+$cosigners2 = [ pk(AG), pk(AI), pk(AJ) ];
+$members2 = [ pk(AK), pk(AL), pk(AM) ];
+$witness2 = [ pk(AN), pk(AO), pk(AP) ];
+$org2 = all($parents2) && thresh(2, $board2) && all($cosigners2) &&  (any($members2) || $timeout);
+$parents3 = [ pk(BA), pk(BB), pk(BC) ];
+$board3 = [ pk(BD), pk(BE), pk(BF) ];
+$cosigners3 = [ pk(BG), pk(BI), pk(BJ) ];
+$members3 = [ pk(BK), pk(BL), pk(BM) ];
+$witness3 = [ pk(BN), pk(BO), pk(BP) ];
+$org3 = all($parents3) && thresh(2, $board3) && all($cosigners3) &&  (any($members3) || $timeout);
+$parents = [ $org1, $org2, $org3 ];
+$board = [ pk(CD), pk(CE), pk(CF) ];
+$cosigners = [ pk(CG), pk(CI), pk(CJ) ];
+$members = [ pk(CK), pk(CL), pk(CM) ];
+$witness = [ pk(CN), pk(CO), pk(CP) ];
+
+// This is the part that concern the new member that request enrollment
+$new_member = pk(${HERE_GOES_NEW_XPUB}/${HERE_PATH});
+
+
+// This is the final minsc expression that will be converted to bitcoin script
+script_witness(wsh(miniscript(all($parents) && thresh(2, $board) && all($cosigners) &&  any($members)  && $new_member)))
