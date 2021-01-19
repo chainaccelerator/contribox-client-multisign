@@ -152,6 +152,19 @@ function decryptWallet(encryptedWallet, userPassword) {
 
   Module._free(clearWallet_ptr);
 
+  try {
+    JSON.parse(clearWallet);
+  } catch(e) {
+    console.log("Can't decrypt the wallet.");
+    if (e instanceof SyntaxError) {
+      alert("Failed to decrypt your wallet, check your password and try again.");
+    }
+    else {
+      alert("Unknwon Error: " + e);
+    }
+    return "";
+  }
+
   return clearWallet;
 }
 

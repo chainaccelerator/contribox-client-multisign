@@ -38,7 +38,6 @@
 
       xpub = getXpub(wallet, password);
       console.log("xpub is " + xpub);
-      mnemonic = getSeed(wallet, password);
       console.log("seed words are " + mnemonic);
 
       restored = restoreWallet(password, mnemonic);
@@ -46,11 +45,9 @@
       if (restoredXpub.localeCompare(xpub) === 0) {
         console.log("restored wallet is OK ");
       }
-      // walletObj = JSON.parse(clearWallet);
-      // console.log("xprv is " + walletObj.integration.share.master.xprv);
-      // console.log("xpub is " + walletObj.integration.share.master.xpub);
-      // console.log("master blinding key is " + walletObj.integration.share.master.masterBlindingKey);
-      // console.log("seed words are \n" + walletObj.integration.share.master.seedWords);
+      // Try to extract the seed with a wrong password
+      var password = "this is not user password";
+      mnemonic = getSeed(wallet, password);
     }
     var Module = {
       onRuntimeInitialized: function () {
