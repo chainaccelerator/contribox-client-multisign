@@ -56,6 +56,7 @@
       confidential = JSON.parse(newConfidentialAddress(script, wallet, password));
       console.log("private_blinding_key is " + confidential.privateBlindingKey);
       console.log("address is " + confidential.unconfidentialAddress);
+      console.log("confidential address is " + confidential.confidentialAddress);
     }
     var Module = {
       onRuntimeInitialized: function () {

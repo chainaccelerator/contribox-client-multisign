@@ -328,7 +328,7 @@ char *decryptFileWithPassword(const char *encryptedFile, const char *userPasswor
         free(cipher - AES_BLOCK_LEN);
         return "";
     };
-    memset(&key, '\0', sizeof(key));
+    memset(key, '\0', sizeof(key));
 
     free(cipher - AES_BLOCK_LEN);
 
@@ -369,7 +369,7 @@ char *getBlindingKeyFromScript(const char *scriptPubkey, const char *masterBlind
         return "";
     }
 
-    memset(&private, '\0', EC_PRIVATE_KEY_LEN);
+    memset(private, '\0', EC_PRIVATE_KEY_LEN);
 
     free(script);
     free(assetBlindingKey);
@@ -406,4 +406,41 @@ char *getAddressFromScript(const char *scriptPubkey, char *address) {
     free(script);
 
     return address;
+}
+
+EMSCRIPTEN_KEEPALIVE
+char *getConfidentialAddressFromAddress(const char *address, const char *privkeyHex, char *confidentialAddress) {
+    unsigned char *blindingPrivkey;
+    unsigned char blindingPubkey[EC_PUBLIC_KEY_LEN];
+    int ret;
+    size_t privkey_len;
+
+    // convert private key to bytes
+    if (!(blindingPrivkey = convertHexToBytes(privkeyHex, &privkey_len))) {
+        printf("convertHexToBytes failed\n");
+        return "";
+    }
+
+    // compute the blinding pubkey from privkey
+    if ((ret = wally_ec_public_key_from_private_key(blindingPrivkey, EC_PRIVATE_KEY_LEN, blindingPubkey, EC_PUBLIC_KEY_LEN)) != 0) {
+        printf("wally_ec_public_key_from_private_key failed with %d error code\n", ret);
+        return "";
+    }
+
+    // create the confidential address from the unconfidential one
+    if ((ret = wally_confidential_addr_from_addr_segwit(
+            address, 
+            UNCONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST,
+            CONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST,
+            blindingPubkey, 
+            EC_PUBLIC_KEY_LEN, 
+            &confidentialAddress)) != 0) {
+        printf("wally_confidential_addr_to_addr failed with %d error code\n", ret);
+        return "";
+    }
+
+    memset(blindingPrivkey, '\0', EC_PRIVATE_KEY_LEN);
+    free(blindingPrivkey);
+
+    return confidentialAddress;
 }

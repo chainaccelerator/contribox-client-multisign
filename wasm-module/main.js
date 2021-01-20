@@ -214,8 +214,6 @@ function newConfidentialAddress(script, encryptedWallet, userPassword) {
     masterBlindingKey = wallet_obj.masterBlindingKey;
   }
 
-  console.log("master blinding key is " + masterBlindingKey);
-
   // get the blinding key
   let privateBlindingKey_ptr = Module._malloc(32);
   if ((privateBlindingKey = ccall('getBlindingKeyFromScript', 'string', ['string', 'string', 'number'], [script, masterBlindingKey, privateBlindingKey_ptr])) === "") {
@@ -230,8 +228,15 @@ function newConfidentialAddress(script, encryptedWallet, userPassword) {
     return "";
   }
 
+  // create the confidential address out of the key and the address
+  let confidentialAddress_ptr = Module._malloc(32);
+  if ((confidentialAddress = ccall('getConfidentialAddressFromAddress', 'string', ['string', 'string', 'number'], [address, privateBlindingKey, confidentialAddress_ptr])) === "") {
+    console.log("getConfidentialAddressFromAddress failed");
+    return "";
+  }
+
   let confidentialInfo = {
-    confidentialAddress: "",
+    confidentialAddress: confidentialAddress,
     privateBlindingKey: privateBlindingKey,
     unconfidentialAddress: address
   }
@@ -242,6 +247,10 @@ function newConfidentialAddress(script, encryptedWallet, userPassword) {
   }
   if (ccall('wally_free_string', 'number', ['number'], [address_ptr]) !== 0) {
     console.log("address wasn't freed");
+    return "";
+  }
+  if (ccall('wally_free_string', 'number', ['number'], [confidentialAddress_ptr]) !== 0) {
+    console.log("confidentialAddress wasn't freed");
     return "";
   }
 
