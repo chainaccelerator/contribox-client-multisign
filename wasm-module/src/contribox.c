@@ -26,7 +26,6 @@ unsigned char *convertHexToBytes(const char *hexstring, size_t *bytes_len) {
     return bytes;
 }
 
-
 EMSCRIPTEN_KEEPALIVE
 int is_elements() {
     int ret;
@@ -41,8 +40,9 @@ int is_elements() {
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *generateMnemonic(const unsigned char *entropy, size_t entropy_len, char *mnemonic) {
+char *generateMnemonic(const unsigned char *entropy, size_t entropy_len) {
     int ret;
+    char *mnemonic;
 
     if ((ret = bip39_mnemonic_from_bytes(NULL, entropy, entropy_len, &mnemonic)) != 0) {
         printf("mnemonic generation failed with %d error code\n", ret);
@@ -53,32 +53,46 @@ char *generateMnemonic(const unsigned char *entropy, size_t entropy_len, char *m
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *generateSeed(const char *mnemonic, char *seed_hex) {
+char *generateSeed(const char *mnemonic, const char *passphrase) {
     int ret;
     size_t written;
     unsigned char seed[BIP39_SEED_LEN_512];
+    char *_passphrase;
+    size_t passphrase_len;
+    char *seed_hex;
 
-    if ((ret = bip39_mnemonic_to_seed(mnemonic, NULL, seed, sizeof(seed), &written)) != 0) {
-        printf("bip39_mnemonic_to_seed failed with %d error code\n", ret);
-        return "";
+    passphrase_len = strlen(passphrase);
+
+    if (passphrase_len == 0) {
+        _passphrase = NULL;
+    } 
+    else {
+        _passphrase = calloc(passphrase_len + 1, sizeof(*passphrase));
+        memcpy(_passphrase, passphrase, passphrase_len);
     }
 
-    if (written != BIP39_SEED_LEN_512) {
-        printf("seed is not %d long, but %lu", BIP39_SEED_LEN_512, (unsigned long)written);
+    if ((ret = bip39_mnemonic_to_seed(mnemonic, _passphrase, seed, BIP39_SEED_LEN_512, &written)) != 0) {
+        printf("bip39_mnemonic_to_seed failed with %d error code\n", ret);
         return "";
     }
 
     wally_hex_from_bytes(seed, BIP39_SEED_LEN_512, &seed_hex);
 
-    memset(&seed, '\0', BIP39_SEED_LEN_512);
+    memset(seed, '\0', BIP39_SEED_LEN_512);
+
+    if (_passphrase) {
+        memset(_passphrase, '\0', passphrase_len);
+        free(_passphrase);
+    }
 
     return seed_hex;
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *generateMasterBlindingKey(const char *seed_hex, char *masterBlindingKey) {
+char *generateMasterBlindingKey(const char *seed_hex) {
     unsigned char bytes_out[HMAC_SHA512_LEN];
     unsigned char seed[BIP39_SEED_LEN_512];
+    char *masterBlindingKey;
     int ret;
     size_t written;
 
@@ -86,38 +100,39 @@ char *generateMasterBlindingKey(const char *seed_hex, char *masterBlindingKey) {
         printf("wally_hex_to_bytes failed with %d error code\n", ret);
         return "";
     }
-    if ((ret = wally_asset_blinding_key_from_seed(seed, sizeof(seed), bytes_out, sizeof(bytes_out))) != 0) {
+    if ((ret = wally_asset_blinding_key_from_seed(seed, BIP39_SEED_LEN_512, bytes_out, HMAC_SHA512_LEN)) != 0) {
         printf("wally_asset_blinding_key_from_seed failed with %d error code\n", ret);
         return "";
     }
 
-    memset(&seed, '\0', sizeof(seed));
+    memset(&seed, '\0', BIP39_SEED_LEN_512);
 
-    wally_hex_from_bytes(bytes_out, sizeof(bytes_out), &masterBlindingKey);
+    wally_hex_from_bytes(bytes_out, HMAC_SHA512_LEN, &masterBlindingKey);
 
     return masterBlindingKey;
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *hdKeyFromSeed(const char *seed_hex, char *xprv) {
+char *hdKeyFromSeed(const char *seed_hex) {
     struct ext_key *hdKey;
     unsigned char seed[BIP39_SEED_LEN_512];
     size_t written;
     int ret;
+    char *xprv;
 
-    wally_hex_to_bytes(seed_hex, seed, sizeof(seed), &written);
+    wally_hex_to_bytes(seed_hex, seed, BIP39_SEED_LEN_512, &written);
 
     if (!(hdKey = malloc(sizeof(*hdKey)))) {
         printf("Memory allocation error\n");
         return "";
     }; 
 
-    if ((ret = bip32_key_from_seed(seed, sizeof(seed), BIP32_VER_MAIN_PRIVATE, (uint32_t)0, hdKey)) != 0) {
+    if ((ret = bip32_key_from_seed(seed, BIP39_SEED_LEN_512, BIP32_VER_MAIN_PRIVATE, (uint32_t)0, hdKey)) != 0) {
         printf("bip32_key_from_seed failed with %d error\n", ret);
         return "";
     } 
 
-    memset(&seed, '\0', sizeof(seed));
+    memset(seed, '\0', BIP39_SEED_LEN_512);
 
     if ((ret = bip32_key_to_base58(hdKey, BIP32_FLAG_KEY_PRIVATE, &xprv)) != 0) {
         printf("bip32_key_to_base58");
@@ -131,8 +146,9 @@ char *hdKeyFromSeed(const char *seed_hex, char *xprv) {
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *xpubFromXprv(const char *xprv, char *xpub) {
+char *xpubFromXprv(const char *xprv) {
     struct ext_key *hdKey;
+    char *xpub;
     int ret;
 
     if (!(hdKey = malloc(sizeof(*hdKey)))) {
@@ -247,10 +263,11 @@ size_t getClearLenFromCipher(const char *encryptedFile) {
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *decryptFileWithPassword(const char *encryptedFile, const char *userPassword, unsigned char *clear) {
+char *decryptFileWithPassword(const char *encryptedFile, const char *userPassword) {
     unsigned char key[PBKDF2_HMAC_SHA256_LEN];
     unsigned char initVector[AES_BLOCK_LEN];
 
+    unsigned char *clear;
     unsigned char *cipher;
     size_t cipher_len;
     size_t clear_len;
@@ -305,7 +322,7 @@ char *decryptFileWithPassword(const char *encryptedFile, const char *userPasswor
 
     // get the clear message len
     clear_len = (cipher_len) / 16 * 16;
-    if (!(clear = calloc(clear_len, sizeof(*clear)))) {
+    if (!(clear = calloc(clear_len + 1, sizeof(*clear)))) {
         printf("Memory allocation error\n");
         return "";
     };

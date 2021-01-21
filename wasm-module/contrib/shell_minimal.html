@@ -38,6 +38,7 @@
 
       xpub = getXpub(wallet, password);
       console.log("xpub is " + xpub);
+      mnemonic = getSeed(wallet, password);
       console.log("seed words are " + mnemonic);
 
       restored = restoreWallet(password, mnemonic);

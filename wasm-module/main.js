@@ -1,3 +1,5 @@
+const PASSPHRASE = "";
+
 function hexStringToByte(str) {
   if (!str) {
     return new Uint8Array();
@@ -49,24 +51,33 @@ function generateWallet(userPassword, mnemonic) {
       masterBlindingKey: ""
   }
 
+  let passphrase = PASSPHRASE; // for now we can define passphrase as a constant, e.g. the application name.
+
+/*   I don't think it's useful to leave the user choose a passphrase along with his seed, 
+  I see it as an error prone and unecessary feature for our use case, user already have a userPassword to remember.
+  It makes sense to define it as constant literal string to prevent collision between different applications.
+  But this behaviour can easily be changed if necessary. */
+
   // generate the seed from the mnemonic
-  let seed_hex_ptr = Module._malloc(32);
-  if ((seed_hex = ccall('generateSeed', 'string', ['string', 'number'], [mnemonic, seed_hex_ptr])) === "") {
+  if ((seed_ptr = ccall('generateSeed', 'number', ['string', 'string'], [mnemonic, passphrase])) === "") {
     console.log("generateMnemonic failed");
     return "";
   }
 
-  if (ccall('wally_free_string', 'number', ['number'], [seed_hex_ptr]) !== 0) {
-    console.log("seed_hex_ptr wasn't freed");
+  let seed_hex = UTF8ToString(seed_ptr);
+
+  if (ccall('wally_free_string', 'number', ['number'], [seed_ptr]) !== 0) {
+    console.log("seed_ptr wasn't freed");
     return "";
   }
 
   // generate a master key and serialize extended keys to base58
-  let xprv_ptr = Module._malloc(32);
-  if ((xprv = ccall('hdKeyFromSeed', 'string', ['string', 'number'], [seed_hex, xprv_ptr])) === "") {
+  if ((xprv_ptr = ccall('hdKeyFromSeed', 'number', ['string'], [seed_hex])) === "") {
     console.log("hdKeyFromSeed failed");
     return "";
   }
+
+  let xprv = UTF8ToString(xprv_ptr);
 
   if (ccall('wally_free_string', 'number', ['number'], [xprv_ptr]) !== 0) {
     console.log("xprv_ptr wasn't freed");
@@ -74,11 +85,12 @@ function generateWallet(userPassword, mnemonic) {
   }
 
   // We compute the master blinding key
-  let masterBlindingKey_ptr = Module._malloc(32);
-  if ((masterBlindingKey_hex = ccall('generateMasterBlindingKey', 'string', ['string', 'number'], [seed_hex, masterBlindingKey_ptr])) === "") {
+  if ((masterBlindingKey_ptr = ccall('generateMasterBlindingKey', 'number', ['string'], [seed_hex])) === "") {
     console.log("generateMasterBlindingKey failed");
     return "";
   }
+
+  let masterBlindingKey_hex = UTF8ToString(masterBlindingKey_ptr);
 
   if (ccall('wally_free_string', 'number', ['number'], [masterBlindingKey_ptr]) !== 0) {
     console.log("masterBlindingKey_ptr wasn't freed");
@@ -91,11 +103,12 @@ function generateWallet(userPassword, mnemonic) {
   Wallet.seedWords = mnemonic;
   
   // Encrypt the wallet in Json form with user password
-  let encryptedWallet_ptr = Module._malloc(32);
-  if ((encryptedWallet = ccall('encryptFileWithPassword', 'string', ['string', 'string', 'number'], [userPassword, JSON.stringify(Wallet), encryptedWallet_ptr])) === "") {
+  if ((encryptedWallet_ptr = ccall('encryptFileWithPassword', 'number', ['string', 'string'], [userPassword, JSON.stringify(Wallet)])) === "") {
     console.log("encryptFileWithPassword failed");
     return "";
   }
+
+  let encryptedWallet = UTF8ToString(encryptedWallet_ptr);
 
   // free the string malloced by libwally
   if (ccall('wally_free_string', 'number', ['number'], [encryptedWallet_ptr]) !== 0) {
@@ -115,22 +128,21 @@ function newWallet(userPassword) {
   let entropy = new Uint8Array(32); // BIP39_ENTROPY_LEN_256
   window.crypto.getRandomValues(entropy);
 
-  // allocate memory for the mnemonic (to be freed later)
-  let mnemonic_ptr = Module._malloc(32);
-
   // generate a mnemonic (seed words) from this entropy
-  if ((mnemonic = ccall('generateMnemonic', 'string', ['array', 'number', 'number'], [entropy, entropy.length, mnemonic_ptr])) === "") {
+  if ((mnemonic_ptr = ccall('generateMnemonic', 'number', ['array', 'number'], [entropy, entropy.length])) === "") {
     console.log("generateMnemonic failed");
-    return "";
-  }
-
-  if (ccall('wally_free_string', 'number', ['number'], [mnemonic_ptr]) !== 0) {
-    console.log("mnemonic wasn't freed");
     return "";
   }
 
   // Overwrite the entropy used since we don't need it anymore
   window.crypto.getRandomValues(entropy);
+
+  let mnemonic = UTF8ToString(mnemonic_ptr);
+
+  if (ccall('wally_free_string', 'number', ['number'], [mnemonic_ptr]) !== 0) {
+    console.log("mnemonic wasn't freed");
+    return "";
+  }
 
   return generateWallet(userPassword, mnemonic);
 }
@@ -140,17 +152,17 @@ function restoreWallet(userPassword, mnemonic) {
 }
 
 function decryptWallet(encryptedWallet, userPassword) {
-  if ((clear_len = ccall('getClearLenFromCipher', 'number', ['string'], [encryptedWallet])) <= 0) {
-    console.log("getClearLenFromCipher failed");
-    return "";
-  };
-  let clearWallet_ptr = Module._malloc(clear_len);
-  if ((clearWallet = ccall('decryptFileWithPassword', 'string', ['string', 'string', 'number'], [encryptedWallet, userPassword, clearWallet_ptr])) === "") {
+  if ((clearWallet_ptr = ccall('decryptFileWithPassword', 'number', ['string', 'string'], [encryptedWallet, userPassword])) === "") {
     console.log("decryptFileWithPassword failed");
     return "";
   };
 
-  Module._free(clearWallet_ptr);
+  let clearWallet = UTF8ToString(clearWallet_ptr);
+
+  if (ccall('wally_free_string', 'number', ['number'], [clearWallet_ptr]) !== 0) {
+    console.log("mnemonic wasn't freed");
+    return "";
+  }
 
   try {
     JSON.parse(clearWallet);
@@ -176,11 +188,12 @@ function getXpub(encryptedWallet, userPassword) {
   
   let wallet_obj = JSON.parse(clearWallet);
 
-  let xpub_ptr = Module._malloc(32);
-  if ((xpub = ccall('xpubFromXprv', 'string', ['string', 'number'], [wallet_obj.xprv, xpub_ptr])) === "") {
+  if ((xpub_ptr = ccall('xpubFromXprv', 'number', ['string'], [wallet_obj.xprv])) === "") {
     console.log("xpubFromXprv failed");
     return "";
   };
+
+  let xpub = UTF8ToString(xpub_ptr);
 
   if (ccall('wally_free_string', 'number', ['number'], [xpub_ptr]) !== 0) {
     console.log("xpub wasn't freed");
@@ -215,23 +228,41 @@ function newConfidentialAddress(script, encryptedWallet, userPassword) {
   }
 
   // get the blinding key
-  let privateBlindingKey_ptr = Module._malloc(32);
-  if ((privateBlindingKey = ccall('getBlindingKeyFromScript', 'string', ['string', 'string', 'number'], [script, masterBlindingKey, privateBlindingKey_ptr])) === "") {
+  if ((privateBlindingKey_ptr = ccall('getBlindingKeyFromScript', 'number', ['string', 'string'], [script, masterBlindingKey])) === "") {
     console.log("getBlindingKeyFromScript failed");
     return "";
   }
 
+  let privateBlindingKey = UTF8ToString(privateBlindingKey_ptr);
+
+  if (ccall('wally_free_string', 'number', ['number'], [privateBlindingKey_ptr]) !== 0) {
+    console.log("private blinding key wasn't freed");
+    return "";
+  }
+
   // get the unconfidential address
-  let address_ptr = Module._malloc(32);
-  if ((address = ccall('getAddressFromScript', 'string', ['string', 'number'], [script, address_ptr])) === "") {
+  if ((address_ptr = ccall('getAddressFromScript', 'number', ['string'], [script])) === "") {
     console.log("getaddressFromScript failed");
     return "";
   }
 
+  let address = UTF8ToString(address_ptr);
+
+  if (ccall('wally_free_string', 'number', ['number'], [address_ptr]) !== 0) {
+    console.log("address wasn't freed");
+    return "";
+  }
+
   // create the confidential address out of the key and the address
-  let confidentialAddress_ptr = Module._malloc(32);
-  if ((confidentialAddress = ccall('getConfidentialAddressFromAddress', 'string', ['string', 'string', 'number'], [address, privateBlindingKey, confidentialAddress_ptr])) === "") {
+  if ((confidentialAddress_ptr = ccall('getConfidentialAddressFromAddress', 'number', ['string', 'string'], [address, privateBlindingKey])) === "") {
     console.log("getConfidentialAddressFromAddress failed");
+    return "";
+  }
+
+  let confidentialAddress = UTF8ToString(confidentialAddress_ptr);
+
+  if (ccall('wally_free_string', 'number', ['number'], [confidentialAddress_ptr]) !== 0) {
+    console.log("confidentialAddress wasn't freed");
     return "";
   }
 
@@ -239,19 +270,6 @@ function newConfidentialAddress(script, encryptedWallet, userPassword) {
     confidentialAddress: confidentialAddress,
     privateBlindingKey: privateBlindingKey,
     unconfidentialAddress: address
-  }
-
-  if (ccall('wally_free_string', 'number', ['number'], [privateBlindingKey_ptr]) !== 0) {
-    console.log("private blinding key wasn't freed");
-    return "";
-  }
-  if (ccall('wally_free_string', 'number', ['number'], [address_ptr]) !== 0) {
-    console.log("address wasn't freed");
-    return "";
-  }
-  if (ccall('wally_free_string', 'number', ['number'], [confidentialAddress_ptr]) !== 0) {
-    console.log("confidentialAddress wasn't freed");
-    return "";
   }
 
   return JSON.stringify(confidentialInfo);
