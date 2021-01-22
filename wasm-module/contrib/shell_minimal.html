@@ -58,6 +58,12 @@
       console.log("private_blinding_key is " + confidential.privateBlindingKey);
       console.log("address is " + confidential.unconfidentialAddress);
       console.log("confidential address is " + confidential.confidentialAddress);
+
+      // derive an address from the xpub
+      var path = "0h/0";
+      if ((address = newAddressFromXpub(xpub, path)) !== "") {
+        console.log("address is " + address);
+      }
     }
     var Module = {
       onRuntimeInitialized: function () {

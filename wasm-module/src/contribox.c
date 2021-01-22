@@ -461,3 +461,65 @@ char *getConfidentialAddressFromAddress(const char *address, const char *privkey
 
     return confidentialAddress;
 }
+
+struct ext_key *getChildFromXpub(const char *xpub, const uint32_t *hdPath, const size_t path_len) {
+    struct ext_key *hdKey;
+    struct ext_key *child;
+    int ret;
+
+    if ((ret = bip32_key_from_base58_alloc(xpub, &hdKey)) != 0) {
+        printf("bip32_key_from_base58 failed with %d error code\n", ret);
+        return NULL;
+    };
+
+    if ((ret = bip32_key_from_parent_path_alloc(hdKey, hdPath, path_len, BIP32_FLAG_KEY_PUBLIC, &child)) != 0) {
+        printf("bip32_key_from_parent_path failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    bip32_key_free(hdKey);
+
+    return child;
+}
+
+EMSCRIPTEN_KEEPALIVE
+char *getPubkeyFromXpub(const char *xpub, const uint32_t *hdPath, const size_t path_len) {
+    struct ext_key *child;
+    char *pubkey_hex;
+    unsigned char pubkey[EC_PUBLIC_KEY_LEN];
+
+    if ((child = getChildFromXpub(xpub, hdPath, path_len)) == NULL) {
+        printf("getChildFromXpub failed\n");
+        return "";
+    }
+
+    memcpy(pubkey, child->pub_key, EC_PUBLIC_KEY_LEN);
+
+    bip32_key_free(child);
+
+    wally_hex_from_bytes(pubkey, HMAC_SHA512_LEN, &pubkey_hex);
+
+    return pubkey_hex;
+}
+
+EMSCRIPTEN_KEEPALIVE
+char *getAddressFromXpub(const char *xpub, const uint32_t *hdPath, const size_t path_len) {
+    struct ext_key *child;
+    char *address;
+    unsigned char pubkey[EC_PUBLIC_KEY_LEN];
+    int ret;
+
+    if ((child = getChildFromXpub(xpub, hdPath, path_len)) == NULL) {
+        printf("getChildFromXpub failed\n");
+        return "";
+    }
+
+    if ((ret = wally_bip32_key_to_addr_segwit(child, UNCONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST, (uint32_t)0, &address)) != 0) {
+        printf("wally_bip32_key_to_addr_segwit failed with %d error code\n", ret);
+        return "";
+    }
+
+    bip32_key_free(child);
+
+    return address;
+}

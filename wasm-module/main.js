@@ -1,4 +1,5 @@
 const PASSPHRASE = "";
+const HARDENED_INDEX = Math.pow(2, 31);
 
 function hexStringToByte(str) {
   if (!str) {
@@ -273,5 +274,57 @@ function newConfidentialAddress(script, encryptedWallet, userPassword) {
   }
 
   return JSON.stringify(confidentialInfo);
+}
 
+function parsePath(hdPath) {
+  // split the hdPath string
+  rawPath = hdPath.split("/");
+
+  let path = rawPath.map(function(x) {
+    let hardened = false;
+    if (x.charAt(x.length - 1) === 'h' || x.charAt(x.length - 1) === '\'') {
+      hardened = true;
+      x = x.slice(0, -1);
+    }
+    var reg = new RegExp('^[0-9]+$');
+    if (!reg.test(x)) {
+      console.error("path is incorrect: must only contain numeric characters");
+      return -1;
+    }
+    if (Number(x) >= HARDENED_INDEX) {
+      console.error("path is incorrect: index must be less than 2^31");
+      return -1;
+    }
+    if (hardened) {
+      return Number(x) + HARDENED_INDEX;
+    }
+    return Number(x);
+  });
+
+  // check that all index is > 0
+  if (!path.every(function(x) {
+    return x >= 0;
+  })) {
+    return "";
+  }
+
+  return path;
+}
+
+function newAddressFromXpub(xpub, hdPath) {
+  let path = parsePath(hdPath);
+
+  if ((address_ptr = ccall('getAddressFromXpub', 'number', ['string', 'array', 'number'], [xpub, path, path.length])) === "") {
+    console.log("getAddressFromXpub failed");
+    return "";
+  }
+
+  let address = UTF8ToString(address_ptr);
+
+  if (ccall('wally_free_string', 'number', ['number'], [address_ptr]) !== 0) {
+    console.log("address wasn't freed");
+    return "";
+  }
+
+  return address;
 }
