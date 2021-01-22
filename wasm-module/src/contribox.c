@@ -105,7 +105,7 @@ char *generateMasterBlindingKey(const char *seed_hex) {
         return "";
     }
 
-    memset(&seed, '\0', BIP39_SEED_LEN_512);
+    memset(seed, '\0', BIP39_SEED_LEN_512);
 
     wally_hex_from_bytes(bytes_out, HMAC_SHA512_LEN, &masterBlindingKey);
 
@@ -122,12 +122,7 @@ char *hdKeyFromSeed(const char *seed_hex) {
 
     wally_hex_to_bytes(seed_hex, seed, BIP39_SEED_LEN_512, &written);
 
-    if (!(hdKey = malloc(sizeof(*hdKey)))) {
-        printf("Memory allocation error\n");
-        return "";
-    }; 
-
-    if ((ret = bip32_key_from_seed(seed, BIP39_SEED_LEN_512, BIP32_VER_MAIN_PRIVATE, (uint32_t)0, hdKey)) != 0) {
+    if ((ret = bip32_key_from_seed_alloc(seed, BIP39_SEED_LEN_512, BIP32_VER_MAIN_PRIVATE, (uint32_t)0, &hdKey)) != 0) {
         printf("bip32_key_from_seed failed with %d error\n", ret);
         return "";
     } 
@@ -139,8 +134,7 @@ char *hdKeyFromSeed(const char *seed_hex) {
         return "";
     };
 
-    memset(hdKey, '\0', sizeof(*hdKey));
-    free(hdKey);
+    bip32_key_free(hdKey);
 
     return xprv;
 }
@@ -157,17 +151,16 @@ char *xpubFromXprv(const char *xprv) {
     }; 
 
     if ((ret = bip32_key_from_base58(xprv, hdKey)) != 0) {
-        printf("bip32_key_from_base58");
+        printf("bip32_key_from_base58 failed with %d error code\n", ret);
         return "";
     };
 
     if ((ret = bip32_key_to_base58(hdKey, BIP32_FLAG_KEY_PUBLIC, &xpub)) != 0) {
-        printf("bip32_key_to_base58 failed");
+        printf("bip32_key_to_base58 failed with %d error code\n", ret);
         return "";
     };
 
-    memset(hdKey, '\0', sizeof(*hdKey));
-    free(hdKey);
+    bip32_key_free(hdKey);
 
     return xpub;
 }
