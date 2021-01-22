@@ -2,7 +2,7 @@
 // It would describe the organisation whose template is expressed below, 
 // maybe add a few relevant legal information.
 
-// This is the fixed part of the template that containall xpubs relative to the organisation
+// This is the fixed part of the template that contain all xpubs relative to the organisation
 A=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/0;
 B=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/1;
 C=tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/200/2;
@@ -90,8 +90,8 @@ $members = [ pk(CK), pk(CL), pk(CM) ];
 $witness = [ pk(CN), pk(CO), pk(CP) ];
 
 // This is the part that concern the new member that request enrollment
-$new_member = pk(${HERE_GOES_NEW_XPUB}/${HERE_PATH});
+$new_member = pk(tpubD6NzVbkrYhZ4XDA7mimo1E8vqhJBSh34B8XfkGL3Guw9jitqTLu7i2Fp5YtDMhNsoj3jdUxAy1adBV7uz2AE8hx3Stp8tBEpAzwp8dRKpwW/201/0);
 
 
 // This is the final minsc expression that will be converted to bitcoin script
-script_witness(wsh(miniscript(all($parents) && thresh(2, $board) && all($cosigners) &&  any($members)  && $new_member)))
+script_witness(wsh(miniscript(all($parents) && thresh(2, $board) && all($cosigners) &&  any($members) && $new_member)))
