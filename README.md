@@ -99,7 +99,27 @@ The same `userPassword` must be provided everytime we need to interact with the 
 
 1. string `encryptedWallet`: the same wallet than `newWallet` return value. The actual string must be different even if we restore with the same `userPassword` since we're using a different initialisation vector each time.  
 
-## newConfidentialAddress
+## newConfidentialAddressFromXpub
+
+### Inputs
+
+1. string `xpub`: our xpub from `getXpub`
+2. string `hdPath`: a hierarchical deterministic path for derivation with the provided `xpub`, in the form `"0h/0/1"`. _Note_: `h` stands for "hardened", and can be replace by `'`. 
+3. string `encryptedWallet`: return by `new_wallet`. 
+4. string `userPassword`
+
+### Outputs
+
+1. string `confidentialAddress`: the blech32 confidential address for the given `address` and `masterBlindingKey`. Is basically `unconfidentialAddress` + `blindingPubkey`.
+2. string `blindingPrivkey`: the private key generated (32B) in hex format. Anyone having this information is also able to unblind all the outputs using this address.
+3. string `unconfidentialAddress`: the bech32 address for the given `script`.
+
+### Notes
+This allow us to create addresses for output that we pay to ourself. For multisig output, we need to obtain a script from the network first, and call `newConfidentialAddressFromScript`.
+It would be possible to use the same call and obtain an address from a xpub that doesn't belong to us, BUT it would be blinded with our `masterBlindingKey`,
+which is an issue. Giving `unconfidentialAddress` to the owner of the xpub would allow him to blind it using his own keys though, but we probably don't need it.
+
+## newConfidentialAddressFromScript
 
 ### Inputs
 

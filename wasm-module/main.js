@@ -45,6 +45,42 @@ function init() {
   return 0;
 }
 
+function parsePath(hdPath) {
+  // split the hdPath string
+  rawPath = hdPath.split("/");
+
+  let path = rawPath.map(function(x) {
+    let hardened = false;
+    if (x.charAt(x.length - 1) === 'h' || x.charAt(x.length - 1) === '\'') {
+      hardened = true;
+      x = x.slice(0, -1);
+    }
+    var reg = new RegExp('^[0-9]+$');
+    if (!reg.test(x)) {
+      console.error("path is incorrect: must only contain numeric characters");
+      return -1;
+    }
+    if (Number(x) >= HARDENED_INDEX) {
+      console.error("path is incorrect: index must be less than 2^31");
+      return -1;
+    }
+    if (hardened) {
+      return Number(x) + HARDENED_INDEX;
+    }
+    return Number(x);
+  });
+
+  // check that all index is > 0
+  if (!path.every(function(x) {
+    return x >= 0;
+  })) {
+    return "";
+  }
+
+  return path;
+}
+
+
 function generateWallet(userPassword, mnemonic) {
   let Wallet = {
       xprv: "",
@@ -182,6 +218,7 @@ function decryptWallet(encryptedWallet, userPassword) {
 }
 
 function getXpub(encryptedWallet, userPassword) {
+  // get the xprv from the encrypted wallet and compute the xpub from it
   if ((clearWallet = decryptWallet(encryptedWallet, userPassword)) === "") {
     console.log("decryptWallet failed");
     return "";
@@ -205,6 +242,7 @@ function getXpub(encryptedWallet, userPassword) {
 }
 
 function getSeed(encryptedWallet, userPassword) {
+  // get the seed from encrypted wallet
   if ((clearWallet = decryptWallet(encryptedWallet, userPassword)) === "") {
     console.log("decryptWallet failed");
     return "";
@@ -215,17 +253,23 @@ function getSeed(encryptedWallet, userPassword) {
   return wallet_obj.seedWords;
 }
 
-function newConfidentialAddress(script, encryptedWallet, userPassword) {
+function getMasterBlindingKey(encryptedWallet, userPassword) {
   // get the master blinding key
   if ((clearWallet = decryptWallet(encryptedWallet, userPassword)) === "") {
     console.log("decryptWallet failed");
     return "";
   }
   
-  let masterBlindingKey;
-  {
-    let wallet_obj = JSON.parse(clearWallet);
-    masterBlindingKey = wallet_obj.masterBlindingKey;
+  let wallet_obj = JSON.parse(clearWallet);
+
+  return wallet_obj.masterBlindingKey;
+}
+
+function newConfidentialAddressFromScript(script, encryptedWallet, userPassword) {
+  // Compute a new confidential address from a multisig script
+  if ((masterBlindingKey = getMasterBlindingKey(encryptedWallet, userPassword)) === "") {
+    console.log("getMasterBlindingKey failed");
+    return "";
   }
 
   // get the blinding key
@@ -276,46 +320,41 @@ function newConfidentialAddress(script, encryptedWallet, userPassword) {
   return JSON.stringify(confidentialInfo);
 }
 
-function parsePath(hdPath) {
-  // split the hdPath string
-  rawPath = hdPath.split("/");
+function newConfidentialAddressFromXpub(xpub, hdPath, encryptedWallet, userPassword) {
+  let path = parsePath(hdPath);
 
-  let path = rawPath.map(function(x) {
-    let hardened = false;
-    if (x.charAt(x.length - 1) === 'h' || x.charAt(x.length - 1) === '\'') {
-      hardened = true;
-      x = x.slice(0, -1);
-    }
-    var reg = new RegExp('^[0-9]+$');
-    if (!reg.test(x)) {
-      console.error("path is incorrect: must only contain numeric characters");
-      return -1;
-    }
-    if (Number(x) >= HARDENED_INDEX) {
-      console.error("path is incorrect: index must be less than 2^31");
-      return -1;
-    }
-    if (hardened) {
-      return Number(x) + HARDENED_INDEX;
-    }
-    return Number(x);
-  });
-
-  // check that all index is > 0
-  if (!path.every(function(x) {
-    return x >= 0;
-  })) {
+  if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'array', 'number'], [xpub, path, path.length])) === "") {
+    console.log("getPubkeyFromXpub failed");
     return "";
   }
 
-  return path;
-}
+  let pubkey = UTF8ToString(pubkey_ptr);
 
-function newAddressFromXpub(xpub, hdPath) {
-  let path = parsePath(hdPath);
+  if (ccall('wally_free_string', 'number', ['number'], [pubkey_ptr]) !== 0) {
+    console.log("pubkey wasn't freed");
+    return "";
+  }
 
-  if ((address_ptr = ccall('getAddressFromXpub', 'number', ['string', 'array', 'number'], [xpub, path, path.length])) === "") {
-    console.log("getAddressFromXpub failed");
+  if ((masterBlindingKey = getMasterBlindingKey(encryptedWallet, userPassword)) === "") {
+    console.log("getMasterBlindingKey failed");
+    return "";
+  }
+
+  // get the blinding key
+  if ((privateBlindingKey_ptr = ccall('getBlindingKeyFromScript', 'number', ['string', 'string'], [pubkey, masterBlindingKey])) === "") {
+    console.log("getBlindingKeyFromScript failed");
+    return "";
+  }
+
+  let privateBlindingKey = UTF8ToString(privateBlindingKey_ptr);
+
+  if (ccall('wally_free_string', 'number', ['number'], [privateBlindingKey_ptr]) !== 0) {
+    console.log("private blinding key wasn't freed");
+    return "";
+  }
+
+  if ((address_ptr = ccall('getAddressFromScript', 'number', ['string'], [pubkey])) === "") {
+    console.log("getAddressFromScript failed");
     return "";
   }
 
@@ -325,6 +364,23 @@ function newAddressFromXpub(xpub, hdPath) {
     console.log("address wasn't freed");
     return "";
   }
+  if ((confidentialAddress_ptr = ccall('getConfidentialAddressFromAddress', 'number', ['string', 'string'], [address, privateBlindingKey])) === "") {
+    console.log("getConfidentialAddressFromAddress failed");
+    return "";
+  }
 
-  return address;
+  let confidentialAddress = UTF8ToString(confidentialAddress_ptr);
+
+  if (ccall('wally_free_string', 'number', ['number'], [confidentialAddress_ptr]) !== 0) {
+    console.log("address wasn't freed");
+    return "";
+  }
+
+  let confidentialInfo = {
+    confidentialAddress: confidentialAddress,
+    privateBlindingKey: privateBlindingKey,
+    unconfidentialAddress: address
+  }
+
+  return JSON.stringify(confidentialInfo);
 }

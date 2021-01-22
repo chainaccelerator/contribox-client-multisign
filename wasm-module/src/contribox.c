@@ -346,17 +346,19 @@ char *decryptFileWithPassword(const char *encryptedFile, const char *userPasswor
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *getBlindingKeyFromScript(const char *scriptPubkey, const char *masterBlindingKey, char *privateBlindingKey) {
+char *getBlindingKeyFromScript(const char *script_hex, const char *masterBlindingKey) {
     unsigned char private[EC_PRIVATE_KEY_LEN];
     unsigned char *assetBlindingKey;
     unsigned char *script;
+    unsigned char *program;
+    char *privateBlindingKey;
     size_t script_len;
     size_t key_len; // HMAC_SHA512_LEN
     int ret;
     size_t written;
 
     // convert script pubkey to bytes
-    if (!(script = convertHexToBytes(scriptPubkey, &script_len))) {
+    if (!(script = convertHexToBytes(script_hex, &script_len))) {
         printf("convertHexToBytes failed\n");
         return "";
     }
@@ -367,10 +369,68 @@ char *getBlindingKeyFromScript(const char *scriptPubkey, const char *masterBlind
         return "";
     }
 
-    // compute the private blinding key
-    if ((ret = wally_asset_blinding_key_to_ec_private_key(assetBlindingKey, HMAC_SHA512_LEN, script, script_len, private, EC_PRIVATE_KEY_LEN)) != 0) {
-        printf("wally_asset_blinding_key_to_ec_private_key failed with %d error code\n", ret);
-        return "";
+    // test the script to see if it is a valid pubkey
+    if ((ret = wally_ec_public_key_verify(script, script_len)) != 0) {
+        if (!(program = malloc(WALLY_SCRIPTPUBKEY_P2WSH_LEN))) {
+            printf("memory allocation failed\n");
+            free(script);
+            free(assetBlindingKey);
+            return "";
+        }
+
+        // we generate a P2WSH from the script
+        if ((ret = wally_witness_program_from_bytes(
+            script, 
+            script_len, 
+            WALLY_SCRIPT_SHA256, // we hash the script with SHA256 to generate the P2WSH program 
+            program, 
+            WALLY_SCRIPTPUBKEY_P2WSH_LEN, 
+            &written)) != 0) {
+            printf("wally_witness_program_from_bytes failed to generate P2WSH with %d error code\n", ret);
+            free(script);
+            free(program);
+            free(assetBlindingKey);
+            return "";
+        }
+
+        // compute the private blinding key
+        if ((ret = wally_asset_blinding_key_to_ec_private_key(assetBlindingKey, HMAC_SHA512_LEN, program, WALLY_SCRIPTPUBKEY_P2WSH_LEN, private, EC_PRIVATE_KEY_LEN)) != 0) {
+            printf("wally_asset_blinding_key_to_ec_private_key failed with %d error code\n", ret);
+            free(script);
+            free(program);
+            free(assetBlindingKey);
+            return "";
+        }
+    }
+    else {
+        if (!(program = malloc(WALLY_SCRIPTPUBKEY_P2WPKH_LEN))) {
+            printf("memory allocation failed\n");
+            free(script);
+            free(assetBlindingKey);
+            return "";
+        }
+        // the script is actually a pubkey, we generate a P2WPKH
+        if ((ret = wally_witness_program_from_bytes(
+            script, 
+            script_len, 
+            WALLY_SCRIPT_HASH160, // we hash the script with RIPEMD160 to generate the P2WPKH program 
+            program, 
+            WALLY_SCRIPTPUBKEY_P2WPKH_LEN, 
+            &written)) != 0) {
+            printf("wally_witness_program_from_bytes failed to generate P2PKH with %d error code\n", ret);
+            free(script);
+            free(program);
+            free(assetBlindingKey);
+            return "";
+        }
+        // compute the private blinding key
+        if ((ret = wally_asset_blinding_key_to_ec_private_key(assetBlindingKey, HMAC_SHA512_LEN, program, WALLY_SCRIPTPUBKEY_P2WPKH_LEN, private, EC_PRIVATE_KEY_LEN)) != 0) {
+            printf("wally_asset_blinding_key_to_ec_private_key failed with %d error code\n", ret);
+            free(script);
+            free(program);
+            free(assetBlindingKey);
+            return "";
+        }
     }
 
     // convert the private key to hex string
@@ -388,45 +448,96 @@ char *getBlindingKeyFromScript(const char *scriptPubkey, const char *masterBlind
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *getAddressFromScript(const char *scriptPubkey, char *address) {
+char *getAddressFromScript(const char *script_hex) {
     unsigned char *script;
-    unsigned char program[WALLY_SCRIPTPUBKEY_P2WSH_LEN];
+    unsigned char *program;
+    char *address;
     size_t script_len;
     size_t written;
     int ret;
 
     // convert script pubkey to bytes
-    if (!(script = convertHexToBytes(scriptPubkey, &script_len))) {
+    if (!(script = convertHexToBytes(script_hex, &script_len))) {
         printf("convertHexToBytes failed\n");
         return "";
     }
 
-    // create the witness program from the script
-    if ((ret = wally_witness_program_from_bytes(script, script_len, WALLY_SCRIPT_SHA256, program, WALLY_SCRIPTPUBKEY_P2WSH_LEN, &written)) != 0) {
-        printf("wally_witness_program_from_bytes failed with %d error code\n", ret);
-        return "";
-    }
+    // test the script to see if it is a valid pubkey
+    if ((ret = wally_ec_public_key_verify(script, script_len)) != 0) {
+        printf("This is a script and we go to P2WSH\n");
+        if (!(program = malloc(WALLY_SCRIPTPUBKEY_P2WSH_LEN))) {
+            printf("memory allocation failed\n");
+            free(script);
+            return "";
+        }
 
-    // create the unconfidential address from program
-    if ((ret = wally_addr_segwit_from_bytes(program, WALLY_SCRIPTPUBKEY_P2WSH_LEN, UNCONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST, 0, &address)) != 0) {
-        printf("wally_addr_segwit_from_bytes failed with %d error code\n", ret);
-        return "";
+        // we generate a P2WSH from the script
+        if ((ret = wally_witness_program_from_bytes(
+            script, 
+            script_len, 
+            WALLY_SCRIPT_SHA256, // we hash the script with SHA256 to generate the P2WSH program 
+            program, 
+            WALLY_SCRIPTPUBKEY_P2WSH_LEN, 
+            &written)) != 0) {
+            printf("wally_witness_program_from_bytes failed to generate P2WSH with %d error code\n", ret);
+            free(script);
+            free(program);
+            return "";
+        }
+
+        // create the unconfidential address from program
+        if ((ret = wally_addr_segwit_from_bytes(program, WALLY_SCRIPTPUBKEY_P2WSH_LEN, UNCONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST, 0, &address)) != 0) {
+            printf("wally_addr_segwit_from_bytes failed with %d error code\n", ret);
+            free(script);
+            free(program);
+            return "";
+        }
+    }
+    else {
+        printf("This is a pubkey and we go to P2WPKH\n");
+        if (!(program = malloc(WALLY_SCRIPTPUBKEY_P2WPKH_LEN))) {
+            printf("memory allocation failed\n");
+            free(script);
+            return "";
+        }
+        // the script is actually a pubkey, we generate a P2WPKH
+        if ((ret = wally_witness_program_from_bytes(
+            script, 
+            script_len, 
+            WALLY_SCRIPT_HASH160, // we hash the script with RIPEMD160 to generate the P2WPKH program 
+            program, 
+            WALLY_SCRIPTPUBKEY_P2WPKH_LEN, 
+            &written)) != 0) {
+            printf("wally_witness_program_from_bytes failed to generate P2PKH with %d error code\n", ret);
+            free(script);
+            free(program);
+            return "";
+        }
+        // create the unconfidential address from program
+        if ((ret = wally_addr_segwit_from_bytes(program, WALLY_SCRIPTPUBKEY_P2WPKH_LEN, UNCONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST, 0, &address)) != 0) {
+            printf("wally_addr_segwit_from_bytes failed with %d error code\n", ret);
+            free(script);
+            free(program);
+            return "";
+        }
     }
 
     free(script);
+    free(program);
 
     return address;
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *getConfidentialAddressFromAddress(const char *address, const char *privkeyHex, char *confidentialAddress) {
+char *getConfidentialAddressFromAddress(const char *address, const char *blindingPrivkey_hex) {
     unsigned char *blindingPrivkey;
     unsigned char blindingPubkey[EC_PUBLIC_KEY_LEN];
+    char *confidentialAddress;
     int ret;
     size_t privkey_len;
 
     // convert private key to bytes
-    if (!(blindingPrivkey = convertHexToBytes(privkeyHex, &privkey_len))) {
+    if (!(blindingPrivkey = convertHexToBytes(blindingPrivkey_hex, &privkey_len))) {
         printf("convertHexToBytes failed\n");
         return "";
     }
@@ -490,7 +601,7 @@ char *getPubkeyFromXpub(const char *xpub, const uint32_t *hdPath, const size_t p
 
     bip32_key_free(child);
 
-    wally_hex_from_bytes(pubkey, HMAC_SHA512_LEN, &pubkey_hex);
+    wally_hex_from_bytes(pubkey, EC_PUBLIC_KEY_LEN, &pubkey_hex);
 
     return pubkey_hex;
 }
