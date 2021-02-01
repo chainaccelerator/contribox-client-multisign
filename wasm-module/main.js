@@ -273,7 +273,7 @@ function newConfidentialAddressFromScript(script, encryptedWallet, userPassword)
   }
 
   // get the blinding key
-  if ((privateBlindingKey_ptr = ccall('getBlindingKeyFromScript', 'number', ['string', 'string'], [script, masterBlindingKey])) === "") {
+  if ((privateBlindingKey_ptr = ccall('getBlindingKeyFromScript', 'number', ['string', 'string'], [script, masterBlindingKey])) === 0) {
     console.log("getBlindingKeyFromScript failed");
     return "";
   }
@@ -383,4 +383,33 @@ function newConfidentialAddressFromXpub(xpub, hdPath, encryptedWallet, userPassw
   }
 
   return JSON.stringify(confidentialInfo);
+}
+
+function createTx(previousTx, encryptedWallet, userPassword) {
+  // get the master blinding key
+  if ((masterBlindingKey = getMasterBlindingKey(encryptedWallet, userPassword)) === "") {
+    console.log("getMasterBlindingKey failed");
+    return "";
+  }
+
+  // unblind the previous tx
+  if ((unblindedSpentUTXO_ptr = ccall('unblindTxOutput', 'number', ['string', 'string'], [previousTx, masterBlindingKey])) === 0) {
+    console.error("unblindTxOutput failed");
+    return "";
+  }
+
+  let unblindedSpentUTXO = UTF8ToString(unblindedSpentUTXO_ptr);
+
+  if (ccall('wally_free_string', 'number', ['number'], [unblindedSpentUTXO_ptr]) !== 0) {
+    console.error("unblindedSpentUTXO wasn't freed");
+    return "";
+  }
+
+  unblinded_obj = JSON.parse(unblindedSpentUTXO);
+
+  console.log("clear asset is  " + unblinded_obj.clearAsset);
+  console.log("clear value is  " + unblinded_obj.clearValue);
+  console.log("abf is  " + unblinded_obj.abf);
+  console.log("vbf is  " + unblinded_obj.vbf);
+
 }

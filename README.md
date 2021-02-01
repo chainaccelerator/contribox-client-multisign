@@ -133,7 +133,7 @@ which is an issue. Giving `unconfidentialAddress` to the owner of the xpub would
 2. string `blindingPrivkey`: the private key generated (32B) in hex format. Anyone having this information is also able to unblind all the outputs using this address.
 3. string `unconfidentialAddress`: the bech32 address for the given `script`.
 
-## create_tx
+## createTx
 
 ### Inputs
 
@@ -147,7 +147,7 @@ which is an issue. Giving `unconfidentialAddress` to the owner of the xpub would
 
 1. string `tx`: hex encoded new transaction that spends `prev_tx`
 
-## sign_tx
+## signTx
 
 ### Inputs
 
@@ -188,3 +188,14 @@ which is an issue. Giving `unconfidentialAddress` to the owner of the xpub would
 ### Notes
 
 `mnemonic` is highly sensitive information, and must be shown to user and immediately erased from memory. It must not be saved on disk.
+
+## getMasterBlindingKey
+
+### Inputs
+
+1. string `encryptedWallet`: return of `newWallet`.
+2. string `password`: password used for creating `encryptedWallet`.
+
+### Outputs
+
+1. string `masterBlindingKey`: the master blinding key we need to generate blinding key pairs for each output.

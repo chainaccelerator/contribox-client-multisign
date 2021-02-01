@@ -3,8 +3,6 @@
 
 #include <string.h>
 
-#include "./ccan/hex/hex.h"
-
 #include "../libwally/include/wally_address.h"
 #include "../libwally/include/wally_bip32.h"
 #include "../libwally/include/wally_bip38.h"
@@ -22,5 +20,13 @@
 
 #define CONFIDENTIAL_ADDRESS_LIQUID_V1 "lq"
 #define CONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST "el"
+
+struct blindingInfo {
+    unsigned char *clearAsset; 
+    unsigned char *assetBlindingFactor;
+    unsigned char *valueBlindingFactor;
+    uint64_t clearValue;
+    struct blindingInfo *next;
+};
 
 #endif /*CONTRIBOX_H*/

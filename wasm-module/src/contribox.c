@@ -2,9 +2,53 @@
 # include "contribox.h"
 # include <stdio.h>
 # include <time.h>
-# include <stdlib.h>
 
 // FIXME: set all the memory that contains private material to zero when it's not used anymore
+
+struct blindingInfo *initBlindingInfo() {
+    /* This will allocate the memory for a blindingInfo struct
+    It is used when unblinding a previous transaction output */
+    struct blindingInfo *res;
+
+    if (!(res = calloc(1, sizeof(*res)))) {
+        printf("memory allocation error\n");
+        return 0;
+    }
+
+    if ((!(res->clearAsset = calloc(ASSET_TAG_LEN, sizeof(unsigned char)))) || 
+        ((!(res->assetBlindingFactor = calloc(BLINDING_FACTOR_LEN, sizeof(unsigned char)))) ||
+        ((!(res->valueBlindingFactor = calloc(BLINDING_FACTOR_LEN, sizeof(unsigned char))))))) {
+            printf("memory allocation error\n");
+            return 0;
+        }
+
+    res->next = NULL;
+
+    return res;
+}
+
+
+void clear_then_free(void *p, size_t len) {
+    if (p) {
+        memset(p, '\0', len);
+        free(p);
+        p = NULL;
+    }
+}
+
+void free_blinding_info(struct blindingInfo **to_clear) {
+    if (!to_clear || !*to_clear) {
+        printf("No blinding info to free\n");
+    }
+
+    clear_then_free((*to_clear)->clearAsset, ASSET_TAG_LEN);
+
+    clear_then_free((*to_clear)->assetBlindingFactor, BLINDING_FACTOR_LEN);
+
+    clear_then_free((*to_clear)->valueBlindingFactor, BLINDING_FACTOR_LEN);
+
+    clear_then_free(*to_clear, sizeof(**to_clear));
+}
 
 unsigned char *convertHexToBytes(const char *hexstring, size_t *bytes_len) {
     /* takes a hexstring, allocates and returns a bytes array */
@@ -24,6 +68,57 @@ unsigned char *convertHexToBytes(const char *hexstring, size_t *bytes_len) {
     }
 
     return bytes;
+}
+
+unsigned char *getWitnessProgram(const unsigned char *script, const size_t script_len, int *isP2WSH) {
+    unsigned char *program = NULL;
+    int ret;
+    size_t written;
+
+    // test the script to see if it is a valid pubkey
+    if ((ret = wally_ec_public_key_verify(script, script_len)) != 0) {
+        if (!(program = malloc(WALLY_SCRIPTPUBKEY_P2WSH_LEN))) {
+            printf("memory allocation failed\n");
+            return NULL;
+        }
+
+        // we generate a P2WSH from the script
+        if ((ret = wally_witness_program_from_bytes(
+            script, 
+            script_len, 
+            WALLY_SCRIPT_SHA256, // we hash the script with SHA256 to generate the P2WSH program 
+            program, 
+            WALLY_SCRIPTPUBKEY_P2WSH_LEN, 
+            &written)) != 0) {
+            printf("wally_witness_program_from_bytes failed to generate P2WSH with %d error code\n", ret);
+            clear_then_free(program, WALLY_SCRIPTPUBKEY_P2WSH_LEN);
+            return NULL;
+        }
+
+        // we set isP2WSH to 1
+        *isP2WSH = 1;
+    }
+    else {
+        if (!(program = malloc(WALLY_SCRIPTPUBKEY_P2WPKH_LEN))) {
+            printf("memory allocation failed\n");
+            return NULL;
+        }
+        // the script is actually a pubkey, we generate a P2WPKH
+        if ((ret = wally_witness_program_from_bytes(
+            script, 
+            script_len, 
+            WALLY_SCRIPT_HASH160, // we hash the script with RIPEMD160 to generate the P2WPKH program 
+            program, 
+            WALLY_SCRIPTPUBKEY_P2WPKH_LEN, 
+            &written)) != 0) {
+            printf("wally_witness_program_from_bytes failed to generate P2PKH with %d error code\n", ret);
+            clear_then_free(program, WALLY_SCRIPTPUBKEY_P2WPKH_LEN);
+            return NULL;
+        }
+        *isP2WSH = 0;
+    }
+
+    return program;
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -76,7 +171,10 @@ char *generateSeed(const char *mnemonic, const char *passphrase) {
         return "";
     }
 
-    wally_hex_from_bytes(seed, BIP39_SEED_LEN_512, &seed_hex);
+    if ((ret = wally_hex_from_bytes(seed, BIP39_SEED_LEN_512, &seed_hex)) != 0) {
+        printf("wally_hex_from_bytes failed with %d error code\n", ret);
+        return "";
+    }
 
     memset(seed, '\0', BIP39_SEED_LEN_512);
 
@@ -107,7 +205,10 @@ char *generateMasterBlindingKey(const char *seed_hex) {
 
     memset(seed, '\0', BIP39_SEED_LEN_512);
 
-    wally_hex_from_bytes(bytes_out, HMAC_SHA512_LEN, &masterBlindingKey);
+    if ((ret = wally_hex_from_bytes(bytes_out, HMAC_SHA512_LEN, &masterBlindingKey)) != 0) {
+        printf("wally_hex_from_bytes failed with %d error code\n", ret);
+        return "";
+    }
 
     return masterBlindingKey;
 }
@@ -351,11 +452,12 @@ char *getBlindingKeyFromScript(const char *script_hex, const char *masterBlindin
     unsigned char *assetBlindingKey;
     unsigned char *script;
     unsigned char *program;
-    char *privateBlindingKey;
+    char *privateBlindingKey = NULL;
     size_t script_len;
     size_t key_len; // HMAC_SHA512_LEN
     int ret;
     size_t written;
+    int isP2WSH;
 
     // convert script pubkey to bytes
     if (!(script = convertHexToBytes(script_hex, &script_len))) {
@@ -369,68 +471,21 @@ char *getBlindingKeyFromScript(const char *script_hex, const char *masterBlindin
         return "";
     }
 
-    // test the script to see if it is a valid pubkey
-    if ((ret = wally_ec_public_key_verify(script, script_len)) != 0) {
-        if (!(program = malloc(WALLY_SCRIPTPUBKEY_P2WSH_LEN))) {
-            printf("memory allocation failed\n");
-            free(script);
-            free(assetBlindingKey);
-            return "";
-        }
-
-        // we generate a P2WSH from the script
-        if ((ret = wally_witness_program_from_bytes(
-            script, 
-            script_len, 
-            WALLY_SCRIPT_SHA256, // we hash the script with SHA256 to generate the P2WSH program 
-            program, 
-            WALLY_SCRIPTPUBKEY_P2WSH_LEN, 
-            &written)) != 0) {
-            printf("wally_witness_program_from_bytes failed to generate P2WSH with %d error code\n", ret);
-            free(script);
-            free(program);
-            free(assetBlindingKey);
-            return "";
-        }
-
-        // compute the private blinding key
-        if ((ret = wally_asset_blinding_key_to_ec_private_key(assetBlindingKey, HMAC_SHA512_LEN, program, WALLY_SCRIPTPUBKEY_P2WSH_LEN, private, EC_PRIVATE_KEY_LEN)) != 0) {
-            printf("wally_asset_blinding_key_to_ec_private_key failed with %d error code\n", ret);
-            free(script);
-            free(program);
-            free(assetBlindingKey);
-            return "";
-        }
+    // get the program from the script
+    if (!(program = getWitnessProgram(script, script_len, &isP2WSH))) {
+        printf("getWitnessProgram failed\n");
+        return "";
     }
-    else {
-        if (!(program = malloc(WALLY_SCRIPTPUBKEY_P2WPKH_LEN))) {
-            printf("memory allocation failed\n");
-            free(script);
-            free(assetBlindingKey);
-            return "";
-        }
-        // the script is actually a pubkey, we generate a P2WPKH
-        if ((ret = wally_witness_program_from_bytes(
-            script, 
-            script_len, 
-            WALLY_SCRIPT_HASH160, // we hash the script with RIPEMD160 to generate the P2WPKH program 
-            program, 
-            WALLY_SCRIPTPUBKEY_P2WPKH_LEN, 
-            &written)) != 0) {
-            printf("wally_witness_program_from_bytes failed to generate P2PKH with %d error code\n", ret);
-            free(script);
-            free(program);
-            free(assetBlindingKey);
-            return "";
-        }
-        // compute the private blinding key
-        if ((ret = wally_asset_blinding_key_to_ec_private_key(assetBlindingKey, HMAC_SHA512_LEN, program, WALLY_SCRIPTPUBKEY_P2WPKH_LEN, private, EC_PRIVATE_KEY_LEN)) != 0) {
-            printf("wally_asset_blinding_key_to_ec_private_key failed with %d error code\n", ret);
-            free(script);
-            free(program);
-            free(assetBlindingKey);
-            return "";
-        }
+
+    // compute the private blinding key
+    if ((ret = wally_asset_blinding_key_to_ec_private_key(assetBlindingKey, HMAC_SHA512_LEN, 
+                                                        program, isP2WSH ? WALLY_SCRIPTPUBKEY_P2WSH_LEN : WALLY_SCRIPTPUBKEY_P2WPKH_LEN, 
+                                                        private, EC_PRIVATE_KEY_LEN)) != 0) {
+        printf("wally_asset_blinding_key_to_ec_private_key failed with %d error code\n", ret);
+        free(script);
+        free(program);
+        free(assetBlindingKey);
+        return "";
     }
 
     // convert the private key to hex string
@@ -451,75 +506,33 @@ EMSCRIPTEN_KEEPALIVE
 char *getAddressFromScript(const char *script_hex) {
     unsigned char *script;
     unsigned char *program;
-    char *address;
+    char *address = NULL;
     size_t script_len;
     size_t written;
     int ret;
+    int isP2WSH;
 
     // convert script pubkey to bytes
     if (!(script = convertHexToBytes(script_hex, &script_len))) {
         printf("convertHexToBytes failed\n");
-        return "";
+        return 0;
     }
 
-    // test the script to see if it is a valid pubkey
-    if ((ret = wally_ec_public_key_verify(script, script_len)) != 0) {
-        printf("This is a script and we go to P2WSH\n");
-        if (!(program = malloc(WALLY_SCRIPTPUBKEY_P2WSH_LEN))) {
-            printf("memory allocation failed\n");
-            free(script);
-            return "";
-        }
-
-        // we generate a P2WSH from the script
-        if ((ret = wally_witness_program_from_bytes(
-            script, 
-            script_len, 
-            WALLY_SCRIPT_SHA256, // we hash the script with SHA256 to generate the P2WSH program 
-            program, 
-            WALLY_SCRIPTPUBKEY_P2WSH_LEN, 
-            &written)) != 0) {
-            printf("wally_witness_program_from_bytes failed to generate P2WSH with %d error code\n", ret);
-            free(script);
-            free(program);
-            return "";
-        }
-
-        // create the unconfidential address from program
-        if ((ret = wally_addr_segwit_from_bytes(program, WALLY_SCRIPTPUBKEY_P2WSH_LEN, UNCONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST, 0, &address)) != 0) {
-            printf("wally_addr_segwit_from_bytes failed with %d error code\n", ret);
-            free(script);
-            free(program);
-            return "";
-        }
+    // get the program from the script
+    if (!(program = getWitnessProgram(script, script_len, &isP2WSH))) {
+        printf("getWitnessProgram failed\n");
+        return 0;
     }
-    else {
-        printf("This is a pubkey and we go to P2WPKH\n");
-        if (!(program = malloc(WALLY_SCRIPTPUBKEY_P2WPKH_LEN))) {
-            printf("memory allocation failed\n");
-            free(script);
-            return "";
-        }
-        // the script is actually a pubkey, we generate a P2WPKH
-        if ((ret = wally_witness_program_from_bytes(
-            script, 
-            script_len, 
-            WALLY_SCRIPT_HASH160, // we hash the script with RIPEMD160 to generate the P2WPKH program 
-            program, 
-            WALLY_SCRIPTPUBKEY_P2WPKH_LEN, 
-            &written)) != 0) {
-            printf("wally_witness_program_from_bytes failed to generate P2PKH with %d error code\n", ret);
-            free(script);
-            free(program);
-            return "";
-        }
-        // create the unconfidential address from program
-        if ((ret = wally_addr_segwit_from_bytes(program, WALLY_SCRIPTPUBKEY_P2WPKH_LEN, UNCONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST, 0, &address)) != 0) {
-            printf("wally_addr_segwit_from_bytes failed with %d error code\n", ret);
-            free(script);
-            free(program);
-            return "";
-        }
+
+    // create the unconfidential address from program
+    if ((ret = wally_addr_segwit_from_bytes(program, isP2WSH ? WALLY_SCRIPTPUBKEY_P2WSH_LEN : WALLY_SCRIPTPUBKEY_P2WPKH_LEN, 
+                                            UNCONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST, 
+                                            0, 
+                                            &address)) != 0) {
+        printf("wally_addr_segwit_from_bytes failed with %d error code\n", ret);
+        free(script);
+        free(program);
+        return 0;
     }
 
     free(script);
@@ -591,6 +604,7 @@ char *getPubkeyFromXpub(const char *xpub, const uint32_t *hdPath, const size_t p
     struct ext_key *child;
     char *pubkey_hex;
     unsigned char pubkey[EC_PUBLIC_KEY_LEN];
+    int ret;
 
     if ((child = getChildFromXpub(xpub, hdPath, path_len)) == NULL) {
         printf("getChildFromXpub failed\n");
@@ -601,7 +615,10 @@ char *getPubkeyFromXpub(const char *xpub, const uint32_t *hdPath, const size_t p
 
     bip32_key_free(child);
 
-    wally_hex_from_bytes(pubkey, EC_PUBLIC_KEY_LEN, &pubkey_hex);
+    if ((ret = wally_hex_from_bytes(pubkey, EC_PUBLIC_KEY_LEN, &pubkey_hex)) != 0) {
+        printf("wally_hex_from_bytes failed with %d error code\n", ret);
+        return "";
+    }
 
     return pubkey_hex;
 }
@@ -626,4 +643,120 @@ char *getAddressFromXpub(const char *xpub, const uint32_t *hdPath, const size_t 
     bip32_key_free(child);
 
     return address;
+}
+
+
+EMSCRIPTEN_KEEPALIVE
+char *unblindTxOutput(const char *tx_hex, const char *masterBlindingKey_hex) {
+    struct blindingInfo *unblindedOutput = NULL;
+    char *unblindedOutput_str = NULL;
+    char *clearAsset = NULL; 
+    char *assetBlindingFactor = NULL;
+    char *valueBlindingFactor = NULL;
+    struct wally_tx_output *output;
+    unsigned char privateBlindingKey[EC_PRIVATE_KEY_LEN];
+    char format[] = "{\"clearAsset\":\"%s\",\"clearValue\":%llu,\"abf\":\"%s\",\"vbf\":\"%s\"}";
+    struct wally_tx *prev_tx = NULL;
+    unsigned char *masterBlindingKey = NULL;
+    size_t key_len;
+    int ret;
+    size_t return_len;
+
+    // convert hex tx to struct
+    if ((ret = wally_tx_from_hex(tx_hex, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &prev_tx)) != 0) {
+        printf("wally_tx_from_hex failed with %d error code\n", ret);
+        goto cleanup;
+    }
+    
+    // convert hex master blinding key to bytes
+    if (!(masterBlindingKey = convertHexToBytes(masterBlindingKey_hex, &key_len))) {
+        printf("convertHexToBytes failed\n");
+        goto cleanup;
+    }
+
+    if (!(unblindedOutput = initBlindingInfo())) {
+        printf("Failed to initialize blindingInfo struct\n");
+        goto cleanup;
+    }
+
+    // we loop on each output
+    for (size_t i = 0; i < (prev_tx->num_outputs); i++) {
+        output = &(prev_tx->outputs[i]);
+
+        // we compute the blinding key pair
+        if ((output->script[0] == OP_0) && (output->script_len == WALLY_SCRIPTPUBKEY_P2WPKH_LEN)) {
+            if ((ret = wally_asset_blinding_key_to_ec_private_key(masterBlindingKey, HMAC_SHA512_LEN, output->script, WALLY_SCRIPTPUBKEY_P2WPKH_LEN, privateBlindingKey, EC_PRIVATE_KEY_LEN)) != 0) {
+                printf("wally_asset_blinding_key_to_ec_private_key failed with %d error code\n", ret);
+                goto cleanup;
+            }
+        }
+        else if ((output->script[0] == OP_0) && (output->script_len == WALLY_SCRIPTPUBKEY_P2WSH_LEN)) {
+            if ((ret = wally_asset_blinding_key_to_ec_private_key(masterBlindingKey, HMAC_SHA512_LEN, output->script, WALLY_SCRIPTPUBKEY_P2WSH_LEN, privateBlindingKey, EC_PRIVATE_KEY_LEN)) != 0) {
+                printf("wally_asset_blinding_key_to_ec_private_key failed with %d error code\n", ret);
+                goto cleanup;
+            }
+        }
+        else {
+            printf("Invalid Segwit version or invalid program length for 0 version at output %zu\n", i);
+            continue;
+        }
+
+        // try asset unblind with all those data
+        if ((ret = wally_asset_unblind(output->nonce,
+                                        EC_PUBLIC_KEY_LEN,
+                                        privateBlindingKey,
+                                        EC_PRIVATE_KEY_LEN,
+                                        output->rangeproof,
+                                        output->rangeproof_len,
+                                        output->value,
+                                        output->value_len,
+                                        output->script,
+                                        output->script_len,
+                                        output->asset,
+                                        ASSET_GENERATOR_LEN,
+                                        unblindedOutput->clearAsset,
+                                        ASSET_TAG_LEN, 
+                                        unblindedOutput->assetBlindingFactor,
+                                        BLINDING_FACTOR_LEN,
+                                        unblindedOutput->valueBlindingFactor,
+                                        BLINDING_FACTOR_LEN,
+                                        &(unblindedOutput->clearValue))) != 0) {
+            printf("wally_asset_unblind failed with %d error code\n", ret);
+            printf("Try unblind next output\n");
+        }
+        break;
+    }
+
+    // compute the size of the final return string
+    return_len = strlen(format) + (ASSET_TAG_LEN * 2) + ((BLINDING_FACTOR_LEN * 2) * 2) + 1;
+    // convert all data to hex string
+    if ((ret = wally_hex_from_bytes(unblindedOutput->clearAsset, ASSET_TAG_LEN, &clearAsset)) != 0) {
+        printf("wally_hex_from_bytes failed with %d error code\n", ret);
+        goto cleanup;
+    }
+    if ((ret = wally_hex_from_bytes(unblindedOutput->assetBlindingFactor, BLINDING_FACTOR_LEN, &assetBlindingFactor)) != 0) {
+        printf("wally_hex_from_bytes failed with %d error code\n", ret);
+        goto cleanup;
+    }
+    if ((ret = wally_hex_from_bytes(unblindedOutput->valueBlindingFactor, BLINDING_FACTOR_LEN, &valueBlindingFactor)) != 0) {
+        printf("wally_hex_from_bytes failed with %d error code\n", ret);
+        goto cleanup;
+    }
+    // allocate the final string
+    if (!(unblindedOutput_str = calloc(return_len, sizeof(*unblindedOutput_str)))) {
+        printf("memory allocation error\n");
+        goto cleanup;
+    }
+    // create a string with all the data
+    snprintf(unblindedOutput_str, return_len, format, clearAsset, (unsigned long long)unblindedOutput->clearValue, assetBlindingFactor, valueBlindingFactor);
+
+cleanup:
+    clear_then_free(masterBlindingKey, key_len);
+    wally_tx_free(prev_tx);
+    wally_free_string(clearAsset);
+    wally_free_string(assetBlindingFactor);
+    wally_free_string(valueBlindingFactor);
+    free_blinding_info(&unblindedOutput);
+
+    return unblindedOutput_str; 
 }
