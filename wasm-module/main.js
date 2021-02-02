@@ -323,7 +323,7 @@ function newConfidentialAddressFromScript(script, encryptedWallet, userPassword)
 function newConfidentialAddressFromXpub(xpub, hdPath, encryptedWallet, userPassword) {
   let path = parsePath(hdPath);
 
-  if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'array', 'number'], [xpub, path, path.length])) === "") {
+  if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'array', 'number'], [xpub, path, path.length])) === 0) {
     console.log("getPubkeyFromXpub failed");
     return "";
   }
@@ -341,7 +341,7 @@ function newConfidentialAddressFromXpub(xpub, hdPath, encryptedWallet, userPassw
   }
 
   // get the blinding key
-  if ((privateBlindingKey_ptr = ccall('getBlindingKeyFromScript', 'number', ['string', 'string'], [pubkey, masterBlindingKey])) === "") {
+  if ((privateBlindingKey_ptr = ccall('getBlindingKeyFromScript', 'number', ['string', 'string'], [pubkey, masterBlindingKey])) === 0) {
     console.log("getBlindingKeyFromScript failed");
     return "";
   }
@@ -353,7 +353,7 @@ function newConfidentialAddressFromXpub(xpub, hdPath, encryptedWallet, userPassw
     return "";
   }
 
-  if ((address_ptr = ccall('getAddressFromScript', 'number', ['string'], [pubkey])) === "") {
+  if ((address_ptr = ccall('getAddressFromScript', 'number', ['string'], [pubkey])) === 0) {
     console.log("getAddressFromScript failed");
     return "";
   }
@@ -364,7 +364,7 @@ function newConfidentialAddressFromXpub(xpub, hdPath, encryptedWallet, userPassw
     console.log("address wasn't freed");
     return "";
   }
-  if ((confidentialAddress_ptr = ccall('getConfidentialAddressFromAddress', 'number', ['string', 'string'], [address, privateBlindingKey])) === "") {
+  if ((confidentialAddress_ptr = ccall('getConfidentialAddressFromAddress', 'number', ['string', 'string'], [address, privateBlindingKey])) === 0) {
     console.log("getConfidentialAddressFromAddress failed");
     return "";
   }
@@ -385,51 +385,45 @@ function newConfidentialAddressFromXpub(xpub, hdPath, encryptedWallet, userPassw
   return JSON.stringify(confidentialInfo);
 }
 
-function createTx(previousTx, contract_hash, encryptedWallet, userPassword) {
+function convertToString(ptr) {
+  let str = UTF8ToString(ptr);
+
+  if (ccall('wally_free_string', 'number', ['number'], [ptr]) !== 0) {
+    console.error("ptr to " + str + " wasn't freed");
+    return "";
+  }
+
+  return str;
+}
+
+function createProposalTx(previousTx, contractHash, encryptedWallet, userPassword) {
   // get the master blinding key
   if ((masterBlindingKey = getMasterBlindingKey(encryptedWallet, userPassword)) === "") {
-    console.log("getMasterBlindingKey failed");
+    console.error("getMasterBlindingKey failed");
     return "";
   }
 
-  // unblind the previous tx
-  if ((unblindedSpentUTXO_ptr = ccall('unblindTxOutput', 'number', ['string', 'string'], [previousTx, masterBlindingKey])) === 0) {
-    console.error("unblindTxOutput failed");
+  let assetCaddress = "el1qqde4eer0nm6f7zeedmvqlk49y043sv4lhkn4lgyu2vy462nwyqg5yxp6qesr6gw64nrhz963afhfv0pfdv32whtckmsklcwjcce8dzl8esxkrzfve5v9";
+  let changeCaddress = "el1qqfgexpuwxmefwvqew6lmdk6l23d0mamvw0syk44sdzzg7kd5mc330w8a997cwqyl8dr55w75djrrqmzp0r07xf0wgdjnp3790";
+  let redeemScript = "522102df047edfa6731450d08f376e627a8f53c2628bfffbb9bcd7bcd30c69a776fe1721021064d3d39a765169614942e903f51239ce3788297bd51c6984fd43cf9a689d8a52ae";
+
+  if ((newTx_ptr = ccall('createBlindedTransactionWithNewAsset', 'number', ['string', 'string', 'string', 'string', 'string'], [previousTx, contractHash, masterBlindingKey, assetCaddress, changeCaddress])) === 0) {
+    console.error("createBlindedTransactionWithNewAsset failed");
     return "";
   }
 
-  let unblindedSpentUTXO = UTF8ToString(unblindedSpentUTXO_ptr);
-
-  if (ccall('wally_free_string', 'number', ['number'], [unblindedSpentUTXO_ptr]) !== 0) {
-    console.error("unblindedSpentUTXO wasn't freed");
+  if ((newTx = convertToString(newTx_ptr)) === "") {
+    console.error("Failed to convert newTx to string");
     return "";
   }
 
-  unblinded_obj = JSON.parse(unblindedSpentUTXO);
+  return newTx;
+}
 
-  console.log("vout is  " + unblinded_obj.vout);
-  console.log("clear asset is  " + unblinded_obj.clearAsset);
-  console.log("clear value is  " + unblinded_obj.clearValue);
-  console.log("abf is  " + unblinded_obj.abf);
-  console.log("vbf is  " + unblinded_obj.vbf);
-
-  if (contract_hash === "") {
-    contract_hash = contract_hash.padStart(64, '0');
+function decodeTx(Tx) {
+  if ((ccall('txIsValid', 'number', ['string'], [Tx])) != 0) {
+    return "Tx can't be decoded";
   }
 
-  // get the asset id for the new asset
-  if ((newAssetID_ptr = ccall('getNewAssetID', 'number', ['string', 'number', 'string'], [previousTx, unblinded_obj.vout, contract_hash])) === 0) {
-    console.error("getNewAssetID failed");
-    return "";
-  }
-
-  let newAssetID = UTF8ToString(newAssetID_ptr);
-
-  if (ccall('wally_free_string', 'number', ['number'], [newAssetID_ptr]) !== 0) {
-    console.error("unblindedSpentUTXO wasn't freed");
-    return "";
-  }
-
-  console.log("new asset id is " + newAssetID);
-
+  return "OK";
 }

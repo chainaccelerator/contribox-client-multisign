@@ -137,15 +137,19 @@ which is an issue. Giving `unconfidentialAddress` to the owner of the xpub would
 
 ### Inputs
 
-1. string `prev_tx`: hex encoded transaction containing the UTXO we're spending.
+1. string `prevTx`: hex encoded transaction containing the UTXO we're spending.
 2. string `asset`: hex encoded asset ID of the asset provided on enrollment.
 3. string `address_1`: address of the first output.
 4. (optional)string `address_2`: address for the second output. 
-5. (optional)string `contract_hash`: an optional 32B piece of information (usually, a hash) that can be committed inside the asset issuance.
+5. (optional)string `contractHash`: an optional 32B piece of information (usually, a hash) that can be committed inside the asset issuance.
 
 ### Outputs
 
 1. string `tx`: hex encoded new transaction that spends `prev_tx`
+
+### Notes
+Bitcoin (and Elements) have the bad habit of reversing hashes' bytes order. It means that when I'll get `contractHash`, I'll assume that the bytes must be reversed from what I get in hex before actually using it. We must remember that when producing the contract hash. 
+If no `contractHash` is provided, I'll provide a 32B `0` string instead.
 
 ## signTx
 

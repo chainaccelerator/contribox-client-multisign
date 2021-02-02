@@ -1,145 +1,6 @@
-# include "emscripten.h"
 # include "contribox.h"
-# include <stdio.h>
-# include <time.h>
 
 // FIXME: set all the memory that contains private material to zero when it's not used anymore
-
-struct blindingInfo *initBlindingInfo() {
-    /* This will allocate the memory for a blindingInfo struct
-    It is used when unblinding a previous transaction output */
-    struct blindingInfo *res;
-
-    if (!(res = calloc(1, sizeof(*res)))) {
-        printf("memory allocation error\n");
-        return 0;
-    }
-
-    if ((!(res->clearAsset = calloc(ASSET_TAG_LEN, sizeof(unsigned char)))) || 
-        ((!(res->assetBlindingFactor = calloc(BLINDING_FACTOR_LEN, sizeof(unsigned char)))) ||
-        ((!(res->valueBlindingFactor = calloc(BLINDING_FACTOR_LEN, sizeof(unsigned char))))))) {
-            printf("memory allocation error\n");
-            return 0;
-        }
-
-    res->next = NULL; // we only spend one UTXO for the moment, but maybe we would need this later
-    res->vout = 0;
-
-    return res;
-}
-
-
-void clear_then_free(void *p, size_t len) {
-    if (p) {
-        memset(p, '\0', len);
-        free(p);
-        p = NULL;
-    }
-}
-
-void free_blinding_info(struct blindingInfo **to_clear) {
-    if (!to_clear || !*to_clear) {
-        printf("No blinding info to free\n");
-    }
-
-    clear_then_free((*to_clear)->clearAsset, ASSET_TAG_LEN);
-
-    clear_then_free((*to_clear)->assetBlindingFactor, BLINDING_FACTOR_LEN);
-
-    clear_then_free((*to_clear)->valueBlindingFactor, BLINDING_FACTOR_LEN);
-
-    clear_then_free(*to_clear, sizeof(**to_clear));
-}
-
-void *reverseBytes(const unsigned char *bytes, const size_t bytes_len) {
-    /*  allocate and return a new byte string that contains the same byte sequence in reverse order
-    bitcoin and elements do love to reverse bytes sequence like hashes
-    BE CAREFUL */
-    unsigned char *bytes_out = NULL;
-
-    if (!(bytes_out = calloc(bytes_len, sizeof(*bytes_out)))) {
-        printf("memory allocation failed\n");
-        return NULL;
-    }
-
-    for (size_t i = 0; i < bytes_len; i++) {
-        *(bytes_out + bytes_len - i - 1) = *(bytes + i);
-    }
-
-    return bytes_out;
-}
-
-unsigned char *convertHexToBytes(const char *hexstring, size_t *bytes_len) {
-    /* takes a hexstring, allocates and returns a bytes array */
-    unsigned char *bytes;
-    int ret;
-    size_t written;
-
-    *bytes_len = strlen(hexstring) / 2;
-    if (!(bytes = malloc(*bytes_len))) {
-        printf("Memory allocation error\n");
-        return NULL;
-    }
-
-    if ((ret = wally_hex_to_bytes(hexstring, bytes, *bytes_len, &written)) != 0) {
-        printf("wally_hex_to_bytes failed with %d error code\n", ret);
-        free(bytes);
-        return NULL;
-    }
-
-    return bytes;
-}
-
-unsigned char *getWitnessProgram(const unsigned char *script, const size_t script_len, int *isP2WSH) {
-    unsigned char *program = NULL;
-    int ret;
-    size_t written;
-
-    // test the script to see if it is a valid pubkey
-    if ((ret = wally_ec_public_key_verify(script, script_len)) != 0) {
-        if (!(program = malloc(WALLY_SCRIPTPUBKEY_P2WSH_LEN))) {
-            printf("memory allocation failed\n");
-            return NULL;
-        }
-
-        // we generate a P2WSH from the script
-        if ((ret = wally_witness_program_from_bytes(
-            script, 
-            script_len, 
-            WALLY_SCRIPT_SHA256, // we hash the script with SHA256 to generate the P2WSH program 
-            program, 
-            WALLY_SCRIPTPUBKEY_P2WSH_LEN, 
-            &written)) != 0) {
-            printf("wally_witness_program_from_bytes failed to generate P2WSH with %d error code\n", ret);
-            clear_then_free(program, WALLY_SCRIPTPUBKEY_P2WSH_LEN);
-            return NULL;
-        }
-
-        // we set isP2WSH to 1
-        *isP2WSH = 1;
-    }
-    else {
-        if (!(program = malloc(WALLY_SCRIPTPUBKEY_P2WPKH_LEN))) {
-            printf("memory allocation failed\n");
-            return NULL;
-        }
-        // the script is actually a pubkey, we generate a P2WPKH
-        if ((ret = wally_witness_program_from_bytes(
-            script, 
-            script_len, 
-            WALLY_SCRIPT_HASH160, // we hash the script with RIPEMD160 to generate the P2WPKH program 
-            program, 
-            WALLY_SCRIPTPUBKEY_P2WPKH_LEN, 
-            &written)) != 0) {
-            printf("wally_witness_program_from_bytes failed to generate P2PKH with %d error code\n", ret);
-            clear_then_free(program, WALLY_SCRIPTPUBKEY_P2WPKH_LEN);
-            return NULL;
-        }
-        *isP2WSH = 0;
-    }
-
-    return program;
-}
 
 EMSCRIPTEN_KEEPALIVE
 int is_elements() {
@@ -267,7 +128,7 @@ char *xpubFromXprv(const char *xprv) {
     int ret;
 
     if (!(hdKey = malloc(sizeof(*hdKey)))) {
-        printf("Memory allocation error\n");
+        printf(MEMORY_ERROR);
         return "";
     }; 
 
@@ -287,7 +148,7 @@ char *xpubFromXprv(const char *xprv) {
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *encryptFileWithPassword(const char *userPassword, const char *toEncrypt, char *encryptedFile) {
+char    *encryptFileWithPassword(const char *userPassword, const char *toEncrypt, char *encryptedFile) {
     unsigned char *cipher;
     unsigned char key[PBKDF2_HMAC_SHA256_LEN];
     int cipher_len;
@@ -318,7 +179,7 @@ char *encryptFileWithPassword(const char *userPassword, const char *toEncrypt, c
     // get the length of the cipher
     cipher_len = strlen(toEncrypt) / 16 * 16 + 16;
     if (!(cipher = calloc(cipher_len + AES_BLOCK_LEN, sizeof(*cipher)))) {
-        printf("Memory allocation error\n");
+        printf(MEMORY_ERROR);
         return "";
     };
     memcpy(cipher, initVector, AES_BLOCK_LEN);
@@ -417,7 +278,7 @@ char *decryptFileWithPassword(const char *encryptedFile, const char *userPasswor
     // malloc the cipher in bytes
     cipher_len = written;
     if (!(cipher = calloc(cipher_len, sizeof(*cipher)))) {
-        printf("Memory allocation error\n");
+        printf(MEMORY_ERROR);
         return "";
     };
 
@@ -437,7 +298,7 @@ char *decryptFileWithPassword(const char *encryptedFile, const char *userPasswor
     // get the clear message len
     clear_len = (cipher_len) / 16 * 16;
     if (!(clear = calloc(clear_len + 1, sizeof(*clear)))) {
-        printf("Memory allocation error\n");
+        printf(MEMORY_ERROR);
         return "";
     };
 
@@ -667,221 +528,136 @@ char *getAddressFromXpub(const char *xpub, const uint32_t *hdPath, const size_t 
 
 
 EMSCRIPTEN_KEEPALIVE
-char *unblindTxOutput(const char *tx_hex, const char *masterBlindingKey_hex) {
-    struct blindingInfo *unblindedOutput = NULL;
-    char *unblindedOutput_str = NULL;
-    char *clearAsset = NULL; 
-    char *assetBlindingFactor = NULL;
-    char *valueBlindingFactor = NULL;
-    struct wally_tx_output *output;
-    unsigned char privateBlindingKey[EC_PRIVATE_KEY_LEN];
-    char format[] = "{\"vout\":%zu,\"clearAsset\":\"%s\",\"clearValue\":%llu,\"abf\":\"%s\",\"vbf\":\"%s\"}";
-    struct wally_tx *prev_tx = NULL;
-    unsigned char *masterBlindingKey = NULL;
+char *createBlindedTransactionWithNewAsset(const char *prevTx_hex, const char *contractHash_hex, const char *masterBlindingKey_hex, const char *assetCAddress, const char *changeCAddress) {
+    unsigned char *masterBlindingKey;
     size_t key_len;
-    int ret;
-    size_t return_len;
+    struct wally_tx *prevTx;
+    unsigned char prevTxID[WALLY_TXHASH_LEN];
+    struct blindingInfo *spentUTXOInput = NULL;
+    struct wally_tx *newTx = NULL;
+    char *newTx_hex = NULL;
+    unsigned char newAssetID[SHA256_LEN];
+    unsigned char *reversed_contractHash = NULL;
+    size_t contractHash_len;
+    int ret = 1;
+    size_t written;
 
-    // convert hex tx to struct
-    if ((ret = wally_tx_from_hex(tx_hex, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &prev_tx)) != 0) {
-        printf("wally_tx_from_hex failed with %d error code\n", ret);
-        goto cleanup;
-    }
-    
     // convert hex master blinding key to bytes
     if (!(masterBlindingKey = convertHexToBytes(masterBlindingKey_hex, &key_len))) {
         printf("convertHexToBytes failed\n");
         goto cleanup;
     }
 
-    if (!(unblindedOutput = initBlindingInfo())) {
-        printf("Failed to initialize blindingInfo struct\n");
+    // convert hex tx to struct
+    if ((ret = wally_tx_from_hex(prevTx_hex, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &prevTx)) != 0) {
+        printf("wally_tx_from_hex failed with %d error code\n", ret);
         goto cleanup;
     }
 
-    // we loop on each output
-    for (size_t i = 0; i < (prev_tx->num_outputs); i++) {
-        output = &(prev_tx->outputs[i]);
-
-        // we compute the blinding key pair
-        if ((output->script[0] == OP_0) && (output->script_len == WALLY_SCRIPTPUBKEY_P2WPKH_LEN)) {
-            if ((ret = wally_asset_blinding_key_to_ec_private_key(masterBlindingKey, HMAC_SHA512_LEN, output->script, WALLY_SCRIPTPUBKEY_P2WPKH_LEN, privateBlindingKey, EC_PRIVATE_KEY_LEN)) != 0) {
-                printf("wally_asset_blinding_key_to_ec_private_key failed with %d error code\n", ret);
-                goto cleanup;
-            }
-        }
-        else if ((output->script[0] == OP_0) && (output->script_len == WALLY_SCRIPTPUBKEY_P2WSH_LEN)) {
-            if ((ret = wally_asset_blinding_key_to_ec_private_key(masterBlindingKey, HMAC_SHA512_LEN, output->script, WALLY_SCRIPTPUBKEY_P2WSH_LEN, privateBlindingKey, EC_PRIVATE_KEY_LEN)) != 0) {
-                printf("wally_asset_blinding_key_to_ec_private_key failed with %d error code\n", ret);
-                goto cleanup;
-            }
-        }
-        else {
-            printf("Invalid Segwit version or invalid program length for 0 version at output %zu\n", i);
+    // get previous txid
+    if ((ret = wally_tx_get_txid(prevTx, prevTxID, WALLY_TXHASH_LEN)) != 0) {
+        printf("wally_tx_get_txid failed with %d error code\n", ret);
+        goto cleanup;
+    }
+    
+    // we loop on each output until we find one we can unblind with our keys
+    for (size_t i = 0; i < (prevTx->num_outputs); i++) { // num_outputs should be either 1 or 2 for now, no fee output
+        printf("Attempting to unblind output %zu\n", i);
+        spentUTXOInput = unblindTxOutput(&(prevTx->outputs[i]), masterBlindingKey);
+        if (!spentUTXOInput) {
+            printf("unblindTxOutput failed\n");
             continue;
         }
-
-        // try asset unblind with all those data
-        if ((ret = wally_asset_unblind(output->nonce,
-                                        EC_PUBLIC_KEY_LEN,
-                                        privateBlindingKey,
-                                        EC_PRIVATE_KEY_LEN,
-                                        output->rangeproof,
-                                        output->rangeproof_len,
-                                        output->value,
-                                        output->value_len,
-                                        output->script,
-                                        output->script_len,
-                                        output->asset,
-                                        ASSET_GENERATOR_LEN,
-                                        unblindedOutput->clearAsset,
-                                        ASSET_TAG_LEN, 
-                                        unblindedOutput->assetBlindingFactor,
-                                        BLINDING_FACTOR_LEN,
-                                        unblindedOutput->valueBlindingFactor,
-                                        BLINDING_FACTOR_LEN,
-                                        &(unblindedOutput->clearValue))) != 0) {
-            printf("wally_asset_unblind failed with %d error code\n", ret);
-            printf("Try unblind next output\n");
-            continue;
-        }
-        unblindedOutput->vout = i;
+        spentUTXOInput->vout = i; // should be either 0 or 1 for now
+        spentUTXOInput->isInput = 1; // Since this will be our transaction's input, set isInput to 1
         break;
     }
 
-    // compute the size of the final return string
-    // FIXME: account for the vout and clear value in the total length
-    return_len = strlen(format) + 
-                (ASSET_TAG_LEN * 2) + // asset id
-                ((BLINDING_FACTOR_LEN * 2) * 2) + // abf and vbf
-                snprintf(NULL, 0, "%llu", (unsigned long long)unblindedOutput->clearValue) + // clear value
-                snprintf(NULL, 0, "%zu", unblindedOutput->vout) + // vout
-                1; // end of string
-
-    // convert all data to hex string
-    if ((ret = wally_hex_from_bytes(unblindedOutput->clearAsset, ASSET_TAG_LEN, &clearAsset)) != 0) {
-        printf("wally_hex_from_bytes failed with %d error code\n", ret);
-        goto cleanup;
-    }
-    if ((ret = wally_hex_from_bytes(unblindedOutput->assetBlindingFactor, BLINDING_FACTOR_LEN, &assetBlindingFactor)) != 0) {
-        printf("wally_hex_from_bytes failed with %d error code\n", ret);
-        goto cleanup;
-    }
-    if ((ret = wally_hex_from_bytes(unblindedOutput->valueBlindingFactor, BLINDING_FACTOR_LEN, &valueBlindingFactor)) != 0) {
-        printf("wally_hex_from_bytes failed with %d error code\n", ret);
-        goto cleanup;
-    }
-    // allocate the final string
-    if (!(unblindedOutput_str = calloc(return_len, sizeof(*unblindedOutput_str)))) {
-        printf("memory allocation error\n");
-        goto cleanup;
-    }
-    // create a string with all the data
-    snprintf(unblindedOutput_str, return_len, format, unblindedOutput->vout, clearAsset, (unsigned long long)unblindedOutput->clearValue, assetBlindingFactor, valueBlindingFactor);
-
-cleanup:
-    clear_then_free(masterBlindingKey, key_len);
-    wally_tx_free(prev_tx);
-    wally_free_string(clearAsset);
-    wally_free_string(assetBlindingFactor);
-    wally_free_string(valueBlindingFactor);
-    free_blinding_info(&unblindedOutput);
-
-    return unblindedOutput_str; 
-}
-
-unsigned char *getTxID(const char *tx_hex) {
-    unsigned char *txID;
-    struct wally_tx *tx;
-    int ret;
-
-    // get tx struct from hex
-    if ((ret = wally_tx_from_hex(tx_hex, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &tx)) != 0) {
-        printf("wally_tx_from_hex failed with %d error code\n", ret);
-        return NULL;
-    }
-
-    // allocate txid
-    if (!(txID = calloc(WALLY_TXHASH_LEN, sizeof(*txID)))) {
-        printf("memory allocation failed\n");
-        wally_tx_free(tx);
-        return NULL;
-    }
-
-    // get txid
-    if ((ret = wally_tx_get_txid(tx, txID, WALLY_TXHASH_LEN)) != 0) {
-        printf("wally_tx_get_txid failed\n");
-        wally_tx_free(tx);
-        free(txID);
-        return NULL;
-    }
-
-    wally_tx_free(tx);
-
-    return txID;
-}
-
-EMSCRIPTEN_KEEPALIVE
-char *getNewAssetID(const char *tx_hex, const uint32_t vout, const char *contract_hash_hex) {
-    char *assetID_hex = NULL;
-    unsigned char entropy[SHA256_LEN];
-    unsigned char assetID[SHA256_LEN];
-    unsigned char *reversed_assetID;
-    unsigned char *txID;
-    unsigned char *contract_hash = NULL;
-    unsigned char *reversed_contract_hash = NULL;
-    size_t contract_len;
-    int ret;
-
-    // get the txid from previous tx
-    if (!(txID = getTxID(tx_hex))) {
-        printf("getTxID failed\n");
+    if (!spentUTXOInput) {
+        printf("Found no output that can be unblinded in previous transaction. Aborting.\n");
         goto cleanup;
     }
 
-    // get the contract hash bytes from the hex string
-    if (!(contract_hash = convertHexToBytes(contract_hash_hex, &contract_len))) {
-        printf("convertHexToBytes failed for contract_hash\n");
+    // the contract hash must be 32 bytes, so 64 char in hex string 
+    if (strlen(contractHash_hex) != (SHA256_LEN * 2)) {
+        printf("Provided contract hash is not 32B long\n");
         goto cleanup;
     }
 
     // reverse the contract hash bytes sequence (don't forget to free it)
-    if (!(reversed_contract_hash = reverseBytes(contract_hash, contract_len))) {
-        printf("reverseBytes failed for contract_hash\n");
+    if (!(reversed_contractHash = reversedBytesFromHex(contractHash_hex, &contractHash_len))) {
+        printf("reversedBytesFromHex failed for contract hash\n");
         goto cleanup;
     }
 
-    // get the entropy
-    if ((ret = wally_tx_elements_issuance_generate_entropy(txID, WALLY_TXHASH_LEN,
-                                                            vout,
-                                                            contract_hash, SHA256_LEN,
-                                                            entropy, SHA256_LEN)) != 0) {
-        printf("wally_tx_elements_issuance_generate_entropy failed\n");
+    // get new asset id
+    if (getNewAssetID(prevTxID, spentUTXOInput->vout, reversed_contractHash, newAssetID) != 0) {
+        printf("Failed getNewAssetID\n");
         goto cleanup;
     }
 
-    // get the asset id
-    if ((ret = wally_tx_elements_issuance_calculate_asset(entropy, SHA256_LEN, assetID, SHA256_LEN)) != 0) {
-        printf("wally_tx_elements_issuance_calculate_asset failed\n");
+    // initialize all the blindingInfo we'll need
+    if (populateBlindingInfoForProposalTx(spentUTXOInput, newAssetID, assetCAddress, changeCAddress) != 0) {
+        printf("Failed to populate blinding infos\n");
         goto cleanup;
     }
 
-    // reverse the asset ID bytes sequence (don't forget to free it)
-    if (!(reversed_assetID = reverseBytes(assetID, SHA256_LEN))) {
-        printf("reverseBytes failed for contract_hash\n");
+    // create a new empty transaction and fill it
+    wally_tx_init_alloc(2, 0, 0, 0, &newTx);
+
+    // create and add the outputs
+    if ((ret = addBlindedOutputs(newTx, spentUTXOInput)) != 0) {
+        printf("addBlindedOutputs failed\n");
+        goto cleanup;
+    }
+    // get the size of the serialized transaction
+    if ((ret = wally_tx_get_length(newTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &written)) != 0) {
+        printf("wally_tx_get_length failed with %d error code\n", ret);
         goto cleanup;
     }
 
-    // convert reversed asset id to hex
-    if ((ret = wally_hex_from_bytes(reversed_assetID, SHA256_LEN, &assetID_hex)) != 0) {
-        printf("wally_hex_from_bytes failed with %d error code\n", ret);
+    printf("size of the transaction with outputs and no input is %zu\n", written);
+    
+    // add asset issuance
+    if ((ret = addIssuanceInput(newTx, spentUTXOInput, prevTxID, reversed_contractHash, masterBlindingKey)) != 0) {
+        printf("addIssuanceInput failed\n");
         goto cleanup;
     }
+
+    // get the size of the serialized transaction
+    if ((ret = wally_tx_get_length(newTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &written)) != 0) {
+        printf("wally_tx_get_length failed with %d error code\n", ret);
+        goto cleanup;
+    }
+
+    printf("size of the transaction with outputs and no input is %zu\n", written);
+
+    // get the tx in hex form
+    if ((ret = wally_tx_to_hex(newTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &newTx_hex)) != 0) {
+        printf("wally_tx_to_hex failed with %d error code\n", ret);
+        goto cleanup;
+    }
+
 
 cleanup:
-    clear_then_free(txID, WALLY_TXHASH_LEN);
-    clear_then_free(contract_hash, SHA256_LEN);
-    clear_then_free(reversed_contract_hash, SHA256_LEN);
-    clear_then_free(reversed_assetID, SHA256_LEN);
-    return assetID_hex;
+    freeBlindingInfo(&spentUTXOInput);
+    clearThenFree(reversed_contractHash, contractHash_len);
+    clearThenFree(masterBlindingKey, key_len);
+    wally_tx_free(newTx);
+    wally_tx_free(prevTx);
+
+    return newTx_hex;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int txIsValid(const char *tx_hex) {
+    int ret = 1;
+    struct wally_tx *prev_tx;
+
+    // convert hex tx to struct
+    if ((ret = wally_tx_from_hex(tx_hex, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &prev_tx)) != 0) {
+        printf("wally_tx_from_hex failed with %d error code\n", ret);
+    }
+
+    return ret;
 }
