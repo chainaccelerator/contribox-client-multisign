@@ -22,10 +22,11 @@
 #define CONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST "el"
 
 struct blindingInfo {
-    unsigned char *clearAsset; 
-    unsigned char *assetBlindingFactor;
-    unsigned char *valueBlindingFactor;
-    uint64_t clearValue;
+    unsigned char       *clearAsset; 
+    unsigned char       *assetBlindingFactor;
+    unsigned char       *valueBlindingFactor;
+    uint64_t            clearValue;
+    size_t              vout;
     struct blindingInfo *next;
 };
 

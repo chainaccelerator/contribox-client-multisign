@@ -385,7 +385,7 @@ function newConfidentialAddressFromXpub(xpub, hdPath, encryptedWallet, userPassw
   return JSON.stringify(confidentialInfo);
 }
 
-function createTx(previousTx, encryptedWallet, userPassword) {
+function createTx(previousTx, contract_hash, encryptedWallet, userPassword) {
   // get the master blinding key
   if ((masterBlindingKey = getMasterBlindingKey(encryptedWallet, userPassword)) === "") {
     console.log("getMasterBlindingKey failed");
@@ -407,9 +407,29 @@ function createTx(previousTx, encryptedWallet, userPassword) {
 
   unblinded_obj = JSON.parse(unblindedSpentUTXO);
 
+  console.log("vout is  " + unblinded_obj.vout);
   console.log("clear asset is  " + unblinded_obj.clearAsset);
   console.log("clear value is  " + unblinded_obj.clearValue);
   console.log("abf is  " + unblinded_obj.abf);
   console.log("vbf is  " + unblinded_obj.vbf);
+
+  if (contract_hash === "") {
+    contract_hash = contract_hash.padStart(64, '0');
+  }
+
+  // get the asset id for the new asset
+  if ((newAssetID_ptr = ccall('getNewAssetID', 'number', ['string', 'number', 'string'], [previousTx, unblinded_obj.vout, contract_hash])) === 0) {
+    console.error("getNewAssetID failed");
+    return "";
+  }
+
+  let newAssetID = UTF8ToString(newAssetID_ptr);
+
+  if (ccall('wally_free_string', 'number', ['number'], [newAssetID_ptr]) !== 0) {
+    console.error("unblindedSpentUTXO wasn't freed");
+    return "";
+  }
+
+  console.log("new asset id is " + newAssetID);
 
 }
