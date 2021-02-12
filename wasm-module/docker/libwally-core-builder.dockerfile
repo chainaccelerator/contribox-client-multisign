@@ -51,6 +51,7 @@ ARG EXPORTED_FUNCTIONS="[\
     '_malloc',\
     '_free',\
     '_wally_init',\
+    '_wally_cleanup',\
     '_wally_secp_randomize',\
     '_wally_free_string']"
 RUN ${SOURCE_EMSDK} && emcc \

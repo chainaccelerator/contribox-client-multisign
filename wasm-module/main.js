@@ -45,6 +45,11 @@ function init() {
   return 0;
 }
 
+// this must be called when we're done, and will free all allocated memory
+function cleanUp() {
+  ccall('wally_cleanup', 'number', ['number'], [0]);
+}
+
 function parsePath(hdPath) {
   // split the hdPath string
   rawPath = hdPath.split("/");

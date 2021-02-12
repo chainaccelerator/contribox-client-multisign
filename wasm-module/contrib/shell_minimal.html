@@ -81,6 +81,10 @@
 
       // try to use it as prevTx of another tx
       newNewTx = createProposalTx(newTx, contract_hash, restored, password);
+
+      // cleanup when we're over
+      cleanUp();
+      console.log("Cleanup and terminating");
     }
     var Module = {
       onRuntimeInitialized: function () {
