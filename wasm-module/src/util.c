@@ -55,8 +55,6 @@ struct blindingInfo *initBlindingInfo() {
 }
 
 void    getRandomBytes(unsigned char *array, const size_t array_len) {
-    srand((unsigned int)time(NULL)); // I don't know if time could fail, and what value it would return then. Maybe we should be careful with that.
-
     for (int i = 0; i < array_len; i++) {
         array[i] = (unsigned char)(rand() % UCHAR_MAX); // I guess it's cleaner than simply shoehorn a signed int inside an unsigned char
     }

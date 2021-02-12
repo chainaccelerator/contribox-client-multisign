@@ -30,7 +30,7 @@ function init() {
   let entropy_ctx = new Uint8Array(32); // WALLY_SECP_RANDOMIZE_LEN
   window.crypto.getRandomValues(entropy_ctx);
 
-  if (ccall("wally_secp_randomize", 'number', ['array', 'number'], [entropy_ctx, entropy_ctx.length]) !== 0) {
+  if (ccall("initializePRNG", 'number', ['array', 'number'], [entropy_ctx, entropy_ctx.length]) !== 0) {
     return -1;
   };
 

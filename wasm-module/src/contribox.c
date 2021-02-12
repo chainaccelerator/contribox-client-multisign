@@ -1,6 +1,16 @@
 # include "contribox.h"
 
-// FIXME: set all the memory that contains private material to zero when it's not used anymore
+EMSCRIPTEN_KEEPALIVE
+int initializePRNG(const unsigned char *entropy, const size_t len) {
+    int ret = 1;
+    if ((ret = wally_secp_randomize(entropy, len)) != 0) {
+        return ret;
+    }
+    
+    srand((unsigned int)*entropy);
+
+    return ret;
+}
 
 EMSCRIPTEN_KEEPALIVE
 int is_elements() {
@@ -570,6 +580,10 @@ char *createBlindedTransactionWithNewAsset(const char *prevTx_hex, const char *c
         }
         spentUTXOInput->vout = i; // should be either 0 or 1 for now
         spentUTXOInput->isInput = 1; // Since this will be our transaction's input, set isInput to 1
+        if (generateAssetGenerator(spentUTXOInput)) { // we need to compute the asset generator for later use
+            printf("generateAssetGenerator failed\n");
+            goto cleanup;
+        }
         break;
     }
 
