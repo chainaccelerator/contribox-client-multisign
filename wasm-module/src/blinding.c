@@ -366,20 +366,6 @@ cleanup:
 
 
 int populateBlindingInfoForProposalTx(struct blindingInfo *initialInput, const unsigned char *newAssetID, const char *assetCAddress, const char *changeCAddress) {
-    /* We will build a linked list that starts with the UTXO we spend and add:
-    * - an issuance input (wich is not really an input but can be considered one for blinding purpose)
-    * - an output we will send the newly created asset to
-    * - an output we will send the asset in the spent UTXO
-    * For each of these we need to set a few flags (isInput and isNewAsset)
-    * and to fill in some data:
-    * - asset ID (either the one we have in the provided UTXO or the one we just created)
-    * - a value in sat (will be `1` most of the time I think)
-    * - an asset blinding factor and a value blinding factor (randomly generated, except the last value blinding factor)
-    * - an asset generator (computed with a dedicated function in libwally)
-    * For the outputs ONLY we also need to decompose the provided confidential addresses:
-    * - a blinding pubkey (contained in the address)
-    * - the scriptpubkey
-    * - the unconfidential address */
     int ret = 1;
     struct blindingInfo *temp;
     unsigned char *lastVbf;

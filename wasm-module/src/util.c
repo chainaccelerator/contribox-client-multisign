@@ -69,10 +69,7 @@ void    getRandomBytes(unsigned char *array, const size_t array_len) {
     }
 }
 
-void *reverseBytes(const unsigned char *bytes, const size_t bytes_len) {
-    /*  allocate and return a new byte string that contains the same byte sequence in reverse order
-    bitcoin and elements do love to reverse bytes sequence like hashes
-    BE CAREFUL */
+void    *reverseBytes(const unsigned char *bytes, const size_t bytes_len) {
     unsigned char *bytes_out = NULL;
 
     if (!(bytes_out = calloc(bytes_len, sizeof(*bytes_out)))) {
