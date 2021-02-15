@@ -61,6 +61,13 @@ struct blindingInfo {
 void clearThenFree(void *p, size_t len);
 void freeBlindingInfo(struct blindingInfo **initialInput);
 struct blindingInfo *initBlindingInfo();
+
+/** Fill an array of array_len size with random bytes
+*   THIS IS NOT CRYPTOGRAPHICALLY SECURE, we use the rand() function
+*   Use this function to generate randomness that is somewhat less critical, blinding factors and initialzation vector for AES encryption.
+*   We use the browser PRNG for seed generation.
+*   FIXME: either use the PRNG of the browser (a bit cumbersome), or add another dependency (libsodium?) with a proper PRNG.
+**/
 void    getRandomBytes(unsigned char *array, const size_t array_len);
 void *reverseBytes(const unsigned char *bytes, const size_t bytes_len);
 unsigned char *convertHexToBytes(const char *hexstring, size_t *bytes_len);

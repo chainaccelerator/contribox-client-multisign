@@ -55,8 +55,17 @@ struct blindingInfo *initBlindingInfo() {
 }
 
 void    getRandomBytes(unsigned char *array, const size_t array_len) {
+    int divisor = RAND_MAX / (UCHAR_MAX+1);
+    int temp;
+    int retval;
+
     for (int i = 0; i < array_len; i++) {
-        array[i] = (unsigned char)(rand() % UCHAR_MAX); // I guess it's cleaner than simply shoehorn a signed int inside an unsigned char
+        retval = rand();
+        do {
+            temp = retval;
+            retval = temp / divisor;
+        }   while (retval > UCHAR_MAX);
+        array[i] = (unsigned char)retval;
     }
 }
 
