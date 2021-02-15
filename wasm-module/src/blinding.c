@@ -402,6 +402,48 @@ int populateBlindingInfoForProposalTx(struct blindingInfo *initialInput, const u
     // add the issuance input to our list
     addBlindingInfoToList(initialInput, temp);
 
+    // same with the change output, which is simply the asset spent by the proposer
+    if (!(temp = initBlindingInfo())) {
+        printf("Failed to initialize blindingInfo struct\n");
+        goto cleanup;
+    }
+
+    // clearValue clearAsset must be the same than our initialInput
+    memcpy(temp->clearAsset, initialInput->clearAsset, SHA256_LEN);
+    temp->clearValue = initialInput->clearValue;
+    temp->scriptPubkey_len = WALLY_SCRIPTPUBKEY_P2WPKH_LEN; // we assume that the destination for the change is another single sig controlled by the proposer
+    // allocate the script pubkey
+    if (!(temp->scriptPubkey = calloc(temp->scriptPubkey_len, sizeof(*(temp->scriptPubkey))))) {
+        printf(MEMORY_ERROR);
+        goto cleanup;
+    }
+
+    // analyze the confidential address
+    ret = analyzeCAddress(changeCAddress, temp->address, temp->blindingPubkey, temp->scriptPubkey, temp->scriptPubkey_len);
+    if (ret != 0) {
+        printf("analyzeCAddress for change output failed\n");
+        goto cleanup;
+    }
+
+    // we generate random blinding factors for the output
+    getRandomBytes(temp->assetBlindingFactor, BLINDING_FACTOR_LEN);
+    getRandomBytes(temp->valueBlindingFactor, BLINDING_FACTOR_LEN);
+
+    // asset generator
+    if (generateAssetGenerator(temp)) {
+        printf("generateAssetGenerator failed for issuance input\n");
+        goto cleanup;
+    }
+
+    // create value commitment
+    if ((ret = generateValueCommitment(temp)) != 0) {
+        printf("generateAssetGenerators failed\n");
+        goto cleanup;
+    }
+
+    // add the change output to our list
+    addBlindingInfoToList(initialInput, temp);
+
     // now the same with the newAsset output
     if (!(temp = initBlindingInfo())) {
         printf("Failed to initialize blindingInfo struct\n");
@@ -425,47 +467,6 @@ int populateBlindingInfoForProposalTx(struct blindingInfo *initialInput, const u
         goto cleanup;
     }
 
-    // we generate random blinding factors for the output
-    getRandomBytes(temp->assetBlindingFactor, BLINDING_FACTOR_LEN);
-    getRandomBytes(temp->valueBlindingFactor, BLINDING_FACTOR_LEN);
-
-    // asset generator
-    if (generateAssetGenerator(temp)) {
-        printf("generateAssetGenerator failed for issuance input\n");
-        goto cleanup;
-    }
-
-    // create value commitment
-    if ((ret = generateValueCommitment(temp)) != 0) {
-        printf("generateAssetGenerators failed\n");
-        goto cleanup;
-    }
-
-    // add the new asset output to our list
-    addBlindingInfoToList(initialInput, temp);
-
-    // same with the change output, which is simply the asset spent by the proposer
-    if (!(temp = initBlindingInfo())) {
-        printf("Failed to initialize blindingInfo struct\n");
-        goto cleanup;
-    }
-    // clearValue clearAsset must be the same than our initialInput
-    memcpy(temp->clearAsset, initialInput->clearAsset, SHA256_LEN);
-    temp->clearValue = initialInput->clearValue;
-    temp->scriptPubkey_len = WALLY_SCRIPTPUBKEY_P2WPKH_LEN; // we assume that the destination for the change is another single sig controlled by the proposer
-    // allocate the script pubkey
-    if (!(temp->scriptPubkey = calloc(temp->scriptPubkey_len, sizeof(*(temp->scriptPubkey))))) {
-        printf(MEMORY_ERROR);
-        goto cleanup;
-    }
-
-    // analyze the confidential address
-    ret = analyzeCAddress(changeCAddress, temp->address, temp->blindingPubkey, temp->scriptPubkey, temp->scriptPubkey_len);
-    if (ret != 0) {
-        printf("analyzeCAddress for change output failed\n");
-        goto cleanup;
-    }
-
     // we generate randomly asset blinding factor only for the last output
     getRandomBytes(temp->assetBlindingFactor, BLINDING_FACTOR_LEN);
     // we keep the pointer to vbf for this last output in a pointer for final vbf computation
@@ -477,19 +478,20 @@ int populateBlindingInfoForProposalTx(struct blindingInfo *initialInput, const u
         goto cleanup;
     }
 
-    // add the change output to our list
-    addBlindingInfoToList(initialInput, temp);
- 
-    // compute the value blinding factor for the last output
-    ret = getLastVbf(initialInput, lastVbf);
-    if (ret != 0) {
-        printf("getLastVbf failed\n");
-        goto cleanup;
-    }
-
     // create value commitment for the last output (don't forget to compute the last vbf before doing this)
     if ((ret = generateValueCommitment(temp)) != 0) {
         printf("generateAssetGenerators failed\n");
+        goto cleanup;
+    }
+
+    // printBytesInHex(temp->assetBlindingFactor, BLINDING_FACTOR_LEN, "new asset abf");
+    // printBytesInHex(temp->valueBlindingFactor, BLINDING_FACTOR_LEN, "new asset vbf");
+    // add the new asset output to our list
+    addBlindingInfoToList(initialInput, temp);
+ 
+    // compute the value blinding factor for the last output (we need all the abf and the others vbf before doing that)
+    if ((ret = getLastVbf(initialInput, lastVbf)) != 0) {
+        printf("getLastVbf failed\n");
         goto cleanup;
     }
 
