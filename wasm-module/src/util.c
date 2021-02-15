@@ -1,6 +1,6 @@
 #include "contribox.h"
 
-void clearThenFree(void *p, size_t len) {
+void    clearThenFree(void *p, size_t len) {
     if (p) {
         memset(p, '\0', len);
         free(p);
@@ -8,7 +8,7 @@ void clearThenFree(void *p, size_t len) {
     }
 }
 
-void freeBlindingInfo(struct blindingInfo **initialInput) {
+void    freeBlindingInfo(struct blindingInfo **initialInput) {
     struct blindingInfo *temp;
     struct blindingInfo *to_clear;
 
@@ -140,7 +140,20 @@ void    printBytesInHex(const unsigned char *toPrint, const size_t len, const ch
     clearThenFree(toPrint_hex, len * 2);
 }
 
-unsigned char *getWitnessProgram(const unsigned char *script, const size_t script_len, int *isP2WSH) {
+void    printBytesInHexReversed(const unsigned char *toPrint, const size_t len, const char *label) {
+    unsigned char *reversed;
+
+    if (!(reversed = reverseBytes(toPrint, len))) {
+        printf("reversed failed\n");
+        return;
+    }
+
+    printBytesInHex(reversed, len, label);
+
+    clearThenFree(reversed, len);
+}
+
+unsigned char   *getWitnessProgram(const unsigned char *script, const size_t script_len, int *isP2WSH) {
     unsigned char *program = NULL;
     int ret;
     size_t written;

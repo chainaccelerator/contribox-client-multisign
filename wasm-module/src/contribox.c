@@ -624,27 +624,12 @@ char *createBlindedTransactionWithNewAsset(const char *prevTx_hex, const char *c
         printf("addBlindedOutputs failed\n");
         goto cleanup;
     }
-    // get the size of the serialized transaction
-    if ((ret = wally_tx_get_length(newTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &written)) != 0) {
-        printf("wally_tx_get_length failed with %d error code\n", ret);
-        goto cleanup;
-    }
 
-    printf("size of the transaction with outputs and no input is %zu\n", written);
-    
     // add asset issuance
     if ((ret = addIssuanceInput(newTx, spentUTXOInput, prevTxID, reversed_contractHash, masterBlindingKey)) != 0) {
         printf("addIssuanceInput failed\n");
         goto cleanup;
     }
-
-    // get the size of the serialized transaction
-    if ((ret = wally_tx_get_length(newTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &written)) != 0) {
-        printf("wally_tx_get_length failed with %d error code\n", ret);
-        goto cleanup;
-    }
-
-    printf("size of the transaction with outputs and no input is %zu\n", written);
 
     // get the tx in hex form
     if ((ret = wally_tx_to_hex(newTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &newTx_hex)) != 0) {

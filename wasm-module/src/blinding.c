@@ -204,10 +204,8 @@ int getLastVbf(const struct blindingInfo *initialInput, unsigned char *lastVbf) 
     ret = wally_asset_final_vbf(values, // array containing all the clear values
                                 values_len, // inputs + outputs
                                 num_inputs, // num_outputs is implicit
-                                abf, // array containing values_len abf
-                                values_len * BLINDING_FACTOR_LEN,
-                                vbf, // array containing values_len - 1 vbf
-                                (values_len - 1) * BLINDING_FACTOR_LEN,
+                                abf, values_len * BLINDING_FACTOR_LEN, // array containing values_len abf
+                                vbf, (values_len - 1) * BLINDING_FACTOR_LEN, // array containing values_len - 1 vbf
                                 lastVbf,
                                 BLINDING_FACTOR_LEN);
 
@@ -288,9 +286,6 @@ int blindOutputs(struct blindingInfo *initialInput) {
         memcpy(inputGenerators + (i * ASSET_GENERATOR_LEN), temp->generator, ASSET_GENERATOR_LEN);
         temp = temp->next;
     }
-    printBytesInHex(inputAssets, ASSET_TAG_LEN * num_inputs, "inputAssets");
-    printBytesInHex(inputAbfs, BLINDING_FACTOR_LEN * num_inputs, "inputAbfs");
-    printBytesInHex(inputGenerators, ASSET_GENERATOR_LEN * num_inputs, "inputGenerators");
 
     // we now loop through each remaining outputs to set the proofs
     while (temp) {
@@ -325,7 +320,9 @@ int blindOutputs(struct blindingInfo *initialInput) {
         }
 
         // generate a random ephemeral private key for rangeproof generation
+        do { 
         getRandomBytes(ephemeralPrivkey, EC_PRIVATE_KEY_LEN);
+        } while (wally_ec_private_key_verify(ephemeralPrivkey, EC_PRIVATE_KEY_LEN)); // just to avoid failing later, we check that the private key is valid before continuing
 
         // derive the corresponding ephemeral pubkey and save it as a nonce
         ret = wally_ec_public_key_from_private_key(ephemeralPrivkey, EC_PRIVATE_KEY_LEN, temp->nonce, EC_PUBLIC_KEY_LEN);
@@ -359,7 +356,7 @@ int blindOutputs(struct blindingInfo *initialInput) {
 cleanup:
     clearThenFree(inputAssets, num_inputs * ASSET_TAG_LEN); 
     clearThenFree(inputAbfs, num_inputs * BLINDING_FACTOR_LEN); 
-    clearThenFree(inputGenerators, ASSET_GENERATOR_LEN);
+    clearThenFree(inputGenerators, num_inputs * ASSET_GENERATOR_LEN);
 
     return ret;
 }
@@ -378,10 +375,11 @@ int populateBlindingInfoForProposalTx(struct blindingInfo *initialInput, const u
 
     // now add the new asset ID
     memcpy(temp->clearAsset, newAssetID, SHA256_LEN);
-    // set isNewAsset isInput to 1 and clearValue
+    // set isNewAsset isInput to 1 and clearValue to issuance default amount
     temp->isNewAsset = 1;
     temp->isInput = 1;
     temp->clearValue = ISSUANCE_ASSET_AMT;
+
 
     // we generate random blinding factors for the issuance, since we can't take it from an UTXO like we did with the "real" input
     getRandomBytes(temp->assetBlindingFactor, BLINDING_FACTOR_LEN);
@@ -504,7 +502,6 @@ cleanup:
 }
 
 int addBlindedOutputs(struct wally_tx *newTx, struct blindingInfo *initialInput) {
-    /* Loop through all the blindingInfo we have for outputs and create and add outputs to a transaction */
     int ret = 1;
     struct blindingInfo *temp;
     char *test_hex;
