@@ -20,6 +20,18 @@ function toHexString(byteArray) {
   }).join('')
 }
 
+function convertToString(ptr) {
+  let str = UTF8ToString(ptr);
+
+  if (ccall('wally_free_string', 'number', ['number'], [ptr]) !== 0) {
+    console.error("ptr to " + str + " wasn't freed");
+    return "";
+  }
+
+  return str;
+}
+
+// this must be called once before calling any other functions below
 function init() {
   console.log("Initializing libwally");
   if (ccall("wally_init", 'number', ['number'], [0]) !== 0) {
@@ -273,52 +285,47 @@ function getMasterBlindingKey(encryptedWallet, userPassword) {
 function newConfidentialAddressFromScript(script, encryptedWallet, userPassword) {
   // Compute a new confidential address from a multisig script
   if ((masterBlindingKey = getMasterBlindingKey(encryptedWallet, userPassword)) === "") {
-    console.log("getMasterBlindingKey failed");
+    console.error("getMasterBlindingKey failed");
     return "";
   }
 
   // get the blinding key
   if ((privateBlindingKey_ptr = ccall('getBlindingKeyFromScript', 'number', ['string', 'string'], [script, masterBlindingKey])) === 0) {
-    console.log("getBlindingKeyFromScript failed");
+    console.error("getBlindingKeyFromScript failed");
     return "";
   }
 
-  let privateBlindingKey = UTF8ToString(privateBlindingKey_ptr);
-
-  if (ccall('wally_free_string', 'number', ['number'], [privateBlindingKey_ptr]) !== 0) {
-    console.log("private blinding key wasn't freed");
+  if ((privateBlindingKey = convertToString(privateBlindingKey_ptr)) === "") {
+    console.error("Failed to convert newTx to string");
     return "";
   }
 
   // get the unconfidential address
   if ((address_ptr = ccall('getAddressFromScript', 'number', ['string'], [script])) === "") {
-    console.log("getaddressFromScript failed");
+    console.error("getaddressFromScript failed");
     return "";
   }
 
-  let address = UTF8ToString(address_ptr);
-
-  if (ccall('wally_free_string', 'number', ['number'], [address_ptr]) !== 0) {
-    console.log("address wasn't freed");
+  if ((address = convertToString(address_ptr)) === "") {
+    console.error("Failed to convert newTx to string");
     return "";
   }
 
   // create the confidential address out of the key and the address
   if ((confidentialAddress_ptr = ccall('getConfidentialAddressFromAddress', 'number', ['string', 'string'], [address, privateBlindingKey])) === "") {
-    console.log("getConfidentialAddressFromAddress failed");
+    console.error("getConfidentialAddressFromAddress failed");
     return "";
   }
 
-  let confidentialAddress = UTF8ToString(confidentialAddress_ptr);
-
-  if (ccall('wally_free_string', 'number', ['number'], [confidentialAddress_ptr]) !== 0) {
-    console.log("confidentialAddress wasn't freed");
+  if ((confidentialAddress = convertToString(confidentialAddress_ptr)) === "") {
+    console.error("Failed to convert newTx to string");
     return "";
   }
 
   let confidentialInfo = {
     confidentialAddress: confidentialAddress,
     privateBlindingKey: privateBlindingKey,
+    // scriptPubkey: scriptPubkey,
     unconfidentialAddress: address
   }
 
@@ -333,10 +340,8 @@ function newConfidentialAddressFromXpub(xpub, hdPath, encryptedWallet, userPassw
     return "";
   }
 
-  let pubkey = UTF8ToString(pubkey_ptr);
-
-  if (ccall('wally_free_string', 'number', ['number'], [pubkey_ptr]) !== 0) {
-    console.log("pubkey wasn't freed");
+  if ((pubkey = convertToString(pubkey_ptr)) === "") {
+    console.error("Failed to convert pubkey to string");
     return "";
   }
 
@@ -351,40 +356,38 @@ function newConfidentialAddressFromXpub(xpub, hdPath, encryptedWallet, userPassw
     return "";
   }
 
-  let privateBlindingKey = UTF8ToString(privateBlindingKey_ptr);
-
-  if (ccall('wally_free_string', 'number', ['number'], [privateBlindingKey_ptr]) !== 0) {
-    console.log("private blinding key wasn't freed");
+  if ((privateBlindingKey = convertToString(privateBlindingKey_ptr)) === "") {
+    console.error("Failed to convert privateBlindingKey to string");
     return "";
   }
 
+  // get the unconfidential address
   if ((address_ptr = ccall('getAddressFromScript', 'number', ['string'], [pubkey])) === 0) {
     console.log("getAddressFromScript failed");
     return "";
   }
 
-  let address = UTF8ToString(address_ptr);
-
-  if (ccall('wally_free_string', 'number', ['number'], [address_ptr]) !== 0) {
-    console.log("address wasn't freed");
+  if ((address = convertToString(address_ptr)) === "") {
+    console.error("Failed to convert address to string");
     return "";
   }
+
+  // combine both to get a confidential address
   if ((confidentialAddress_ptr = ccall('getConfidentialAddressFromAddress', 'number', ['string', 'string'], [address, privateBlindingKey])) === 0) {
     console.log("getConfidentialAddressFromAddress failed");
     return "";
   }
 
-  let confidentialAddress = UTF8ToString(confidentialAddress_ptr);
-
-  if (ccall('wally_free_string', 'number', ['number'], [confidentialAddress_ptr]) !== 0) {
-    console.log("address wasn't freed");
+  if ((confidentialAddress = convertToString(confidentialAddress_ptr)) === "") {
+    console.error("Failed to convert confidentialAddress to string");
     return "";
   }
 
   let confidentialInfo = {
     confidentialAddress: confidentialAddress,
     privateBlindingKey: privateBlindingKey,
-    unconfidentialAddress: address
+    unconfidentialAddress: address,
+    pubkey: pubkey
   }
 
   return JSON.stringify(confidentialInfo);
