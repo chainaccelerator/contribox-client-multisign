@@ -536,19 +536,20 @@ int addBlindedOutputs(struct wally_tx *newTx, struct blindingInfo *initialInput)
     return ret;
 }
 
-int getIssuanceNonce(const unsigned char *prevTxID, const uint32_t *index, const unsigned char *masterBlindingKey, unsigned char *nonce) {
-    /* Inspired from what is done in Elements, we create an OP_RETURN + prevout script and derive a key from it
-    * using the master blinding key. This way we have a determinist nonce and garantee that it won't be reused
-    */
+int getIssuanceNonce(const unsigned char *prevTxID, uint32_t index, const unsigned char *masterBlindingKey, unsigned char *nonce) {
     int ret = 1;
     size_t written;
-    unsigned char index_array[sizeof(*index)];
-    unsigned char message[SHA256_LEN + sizeof(*index)]; // we add up the txid (which is a sha256 hash) and the index (unsigned int)
+    unsigned char index_array[sizeof(index)];
+    unsigned char message[SHA256_LEN + sizeof(index)]; // we add up the txid (which is a sha256 hash) and the index (unsigned int)
     unsigned char script[sizeof(message) + 2]; // we add one byte for the OP_RETURN and one for the varint
 
-    for (size_t i = 0; i < sizeof(*index); i++) {
-        index_array[i] = (unsigned char)*index + i;
-    }
+    if (sizeof(index_array) != 4) // This should never happen since we use a custom type for index
+        return ret;
+
+    index_array[0] = (index >> 24) & 0xff;    
+    index_array[1] = (index >> 16) & 0xff;    
+    index_array[2] = (index >> 8) & 0xff;    
+    index_array[3] = index & 0xff;    
 
     memcpy(message, prevTxID, SHA256_LEN);
     memcpy(message + SHA256_LEN, index_array, sizeof(index_array));
@@ -586,14 +587,15 @@ int addIssuanceInput(struct wally_tx *newTx, struct blindingInfo *initialInput, 
         return ret;
     }
 
-    // if ((ret = getIssuanceNonce(prevTxID, &vout, masterBlindingKey, nonce)) != 0) {
-    //     printf("getIssuanceNonce failed\n");
-    //     return ret;
-    // }
+    if ((ret = getIssuanceNonce(prevTxID, vout | WALLY_TX_ISSUANCE_FLAG, masterBlindingKey, nonce)) != 0) {
+        printf("getIssuanceNonce failed\n");
+        return ret;
+    }
+
 
     // generate rangeproof for the issuance input
     ret = wally_asset_rangeproof_with_nonce(issuance->clearValue,
-                                    emptyNonce, EC_PRIVATE_KEY_LEN, // nonce we compute with getIssuanceNonce()
+                                    nonce, EC_PRIVATE_KEY_LEN, // nonce we compute with getIssuanceNonce()
                                     issuance->clearAsset, ASSET_TAG_LEN,
                                     issuance->assetBlindingFactor, BLINDING_FACTOR_LEN,
                                     issuance->valueBlindingFactor, BLINDING_FACTOR_LEN,
@@ -613,12 +615,11 @@ int addIssuanceInput(struct wally_tx *newTx, struct blindingInfo *initialInput, 
     // add the input to the transaction
     ret = wally_tx_add_elements_raw_input(newTx,
                                             prevTxID, WALLY_TXHASH_LEN,
-                                            vout,
+                                            vout | WALLY_TX_ISSUANCE_FLAG,
                                             INPUT_DEACTIVATE_SEQUENCE, // sequence must be set at 0xffffffff if not used
                                             NULL, 0, // scriptSig and its length
                                             NULL, // witness stack
-                                            emptyNonce, WALLY_TX_ASSET_TAG_LEN, // nonce is ecdh(pubkey, privkey). For issuance there's no output to get the pubkey from
-                                            // nonce, WALLY_TX_ASSET_TAG_LEN, // nonce is ecdh(pubkey, privkey). For issuance there's no output to get the pubkey from
+                                            emptyNonce, WALLY_TX_ASSET_TAG_LEN, // nonce is ecdh(pubkey, privkey). Issuance has an empty nonce
                                             contractHash, WALLY_TX_ASSET_TAG_LEN, // the contract hash provided in input, only reversed
                                             issuance->valueCommitment, ASSET_COMMITMENT_LEN, // blinded issuance amount obtained with wally_asset_value_commitment()
                                             NULL, 0, // blinded token amount, this should be 0
