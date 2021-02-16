@@ -393,29 +393,20 @@ function newConfidentialAddressFromXpub(xpub, hdPath, encryptedWallet, userPassw
   return JSON.stringify(confidentialInfo);
 }
 
-function convertToString(ptr) {
-  let str = UTF8ToString(ptr);
+function createProposalTx(previousTx, contractHash, assetAddress, changeAddress, encryptedWallet, userPassword, blind) {
+  let masterBlindingKey;
+  let newTx; 
 
-  if (ccall('wally_free_string', 'number', ['number'], [ptr]) !== 0) {
-    console.error("ptr to " + str + " wasn't freed");
-    return "";
-  }
+  // FIXME: check if the provided addresses are confidential if blind == 1, fail now if one or both are not.
 
-  return str;
-}
-
-function createProposalTx(previousTx, contractHash, encryptedWallet, userPassword) {
   // get the master blinding key
   if ((masterBlindingKey = getMasterBlindingKey(encryptedWallet, userPassword)) === "") {
     console.error("getMasterBlindingKey failed");
     return "";
   }
 
-  let assetCaddress = "el1qqde4eer0nm6f7zeedmvqlk49y043sv4lhkn4lgyu2vy462nwyqg5yxp6qesr6gw64nrhz963afhfv0pfdv32whtckmsklcwjcce8dzl8esxkrzfve5v9";
-  let changeCaddress = "el1qqfgexpuwxmefwvqew6lmdk6l23d0mamvw0syk44sdzzg7kd5mc330w8a997cwqyl8dr55w75djrrqmzp0r07xf0wgdjnp3790";
-  let redeemScript = "522102df047edfa6731450d08f376e627a8f53c2628bfffbb9bcd7bcd30c69a776fe1721021064d3d39a765169614942e903f51239ce3788297bd51c6984fd43cf9a689d8a52ae";
-
-  if ((newTx_ptr = ccall('createBlindedTransactionWithNewAsset', 'number', ['string', 'string', 'string', 'string', 'string'], [previousTx, contractHash, masterBlindingKey, assetCaddress, changeCaddress])) === 0) {
+  // call createTransactionWithNewAsset with the righ blind flag
+  if ((newTx_ptr = ccall('createTransactionWithNewAsset', 'number', ['string', 'string', 'string', 'string', 'string', 'number'], [previousTx, contractHash, masterBlindingKey, assetAddress, changeAddress, blind])) === 0) {
     console.error("createBlindedTransactionWithNewAsset failed");
     return "";
   }

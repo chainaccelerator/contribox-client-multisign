@@ -31,13 +31,13 @@ cleanup:
     return ret;
 }
 
-struct blindingInfo *unblindTxOutput(const struct wally_tx_output *output, const unsigned char *masterBlindingKey) {
-    struct blindingInfo *unblindedOutput = NULL;
+struct txInfo *unblindTxOutput(const struct wally_tx_output *output, const unsigned char *masterBlindingKey) {
+    struct txInfo *unblindedOutput = NULL;
     unsigned char privateBlindingKey[EC_PRIVATE_KEY_LEN];
     int ret = 1;
 
-    if (!(unblindedOutput = initBlindingInfo())) {
-        printf("Failed to initialize blindingInfo struct\n");
+    if (!(unblindedOutput = initTxInfo())) {
+        printf("Failed to initialize txInfo struct\n");
         return NULL; 
     }
 
@@ -79,7 +79,7 @@ struct blindingInfo *unblindTxOutput(const struct wally_tx_output *output, const
                                     BLINDING_FACTOR_LEN,
                                     unblindedOutput->valueBlindingFactor,
                                     BLINDING_FACTOR_LEN,
-                                    &(unblindedOutput->clearValue))) != 0) {
+                                    &(unblindedOutput->satoshi))) != 0) {
         printf("wally_asset_unblind failed with %d error code\n", ret);
         return NULL;
     }
@@ -109,8 +109,8 @@ int getNewAssetID(const unsigned char *txID, const uint32_t vout, const unsigned
     return ret;
 }
 
-unsigned long long *getValuesList(const struct blindingInfo *initialInput, size_t *values_len, size_t *num_inputs) {
-    const struct blindingInfo *temp;
+unsigned long long *getValuesList(const struct txInfo *initialInput, size_t *values_len, size_t *num_inputs) {
+    const struct txInfo *temp;
     unsigned long long *values = NULL;
 
     temp = initialInput;
@@ -133,15 +133,16 @@ unsigned long long *getValuesList(const struct blindingInfo *initialInput, size_
     // copy the values to the list
     temp = initialInput;
     for (size_t i = 0; i < *values_len; i++) {
-        values[i] = (unsigned long long)temp->clearValue;
+        values[i] = (unsigned long long)temp->satoshi;
+        printf("values[%zu] is %llu\n", i, values[i]);
         temp = temp->next;
     }
 
     return values;
 }
 
-unsigned char *getAbfArray(const struct blindingInfo *initialInput, const size_t values_len) {
-    const struct blindingInfo *temp;
+unsigned char *getAbfArray(const struct txInfo *initialInput, const size_t values_len) {
+    const struct txInfo *temp;
     unsigned char *abf = NULL;
 
     // allocate abf array
@@ -160,8 +161,8 @@ unsigned char *getAbfArray(const struct blindingInfo *initialInput, const size_t
     return abf;
 }
 
-unsigned char *getVbfArray(const struct blindingInfo *initialInput, const size_t values_len) {
-    const struct blindingInfo *temp;
+unsigned char *getVbfArray(const struct txInfo *initialInput, const size_t values_len) {
+    const struct txInfo *temp;
     unsigned char *vbf = NULL;
 
     // allocate vbf array
@@ -172,7 +173,7 @@ unsigned char *getVbfArray(const struct blindingInfo *initialInput, const size_t
     }
 
     temp = initialInput;
-    for (size_t i = 0; i < values_len - 1; i++) {
+    for (size_t i = 0; i < (values_len - 1); i++) {
         memcpy(vbf + (BLINDING_FACTOR_LEN * i), temp->valueBlindingFactor, BLINDING_FACTOR_LEN);
         temp = temp->next;
     }
@@ -180,7 +181,7 @@ unsigned char *getVbfArray(const struct blindingInfo *initialInput, const size_t
     return vbf;
 }
 
-int getLastVbf(const struct blindingInfo *initialInput, unsigned char *lastVbf) {
+int getLastVbf(const struct txInfo *initialInput, unsigned char *lastVbf) {
     size_t values_len = 0;
     size_t num_inputs = 0;
     unsigned long long *values = NULL;
@@ -194,8 +195,9 @@ int getLastVbf(const struct blindingInfo *initialInput, unsigned char *lastVbf) 
         return ret;
     } 
 
+    printf("values_len is %zu\n", values_len);
     abf = getAbfArray(initialInput, values_len);
-    vbf = getVbfArray(initialInput, values_len);
+    vbf = getVbfArray(initialInput, values_len) ;
     if (!abf || !vbf) {
         printf("Failed to get abf or vbf array\n");
         return ret;
@@ -217,8 +219,8 @@ cleanup:
     return ret;
 }
 
-void    addBlindingInfoToList(struct blindingInfo *firstInput, struct blindingInfo *new) {
-	struct blindingInfo	*temp;
+void    addTxInfoToList(struct txInfo *firstInput, struct txInfo *new) {
+	struct txInfo	*temp;
 
     temp = firstInput;
     
@@ -227,7 +229,7 @@ void    addBlindingInfoToList(struct blindingInfo *firstInput, struct blindingIn
     temp->next = new;
 }
 
-int generateAssetGenerator(struct blindingInfo *element) {
+int generateAssetGenerator(struct txInfo *element) {
     int ret;
 
     ret = wally_asset_generator_from_bytes(element->clearAsset, ASSET_TAG_LEN, element->assetBlindingFactor, BLINDING_FACTOR_LEN, element->generator, ASSET_GENERATOR_LEN);
@@ -238,10 +240,10 @@ int generateAssetGenerator(struct blindingInfo *element) {
     return ret;
 }
 
-int generateValueCommitment(struct blindingInfo *element) {
+int generateValueCommitment(struct txInfo *element) {
     int ret;
 
-    ret = wally_asset_value_commitment(element->clearValue,
+    ret = wally_asset_value_commitment(element->satoshi,
                                         element->valueBlindingFactor, BLINDING_FACTOR_LEN,
                                         element->generator, ASSET_GENERATOR_LEN,
                                         element->valueCommitment, ASSET_COMMITMENT_LEN);
@@ -252,8 +254,8 @@ int generateValueCommitment(struct blindingInfo *element) {
     return ret;
 }
 
-int blindOutputs(struct blindingInfo *initialInput) {
-    struct blindingInfo *temp;
+int blindOutputs(struct txInfo *initialInput) {
+    struct txInfo *temp;
     unsigned char ephemeralPrivkey[EC_PRIVATE_KEY_LEN];
     unsigned char surjectionproofRandomBytes[32];
     unsigned char *inputAssets;
@@ -304,6 +306,14 @@ int blindOutputs(struct blindingInfo *initialInput) {
             return 1;
         }
 
+        // printBytesInHex(temp->clearAsset, ASSET_TAG_LEN, "clearAsset");
+        // printBytesInHex(temp->assetBlindingFactor, BLINDING_FACTOR_LEN, "assetBlindingFactor");
+        // printBytesInHex(temp->generator, ASSET_GENERATOR_LEN, "generator");
+        // printBytesInHex(surjectionproofRandomBytes, 32, "random bytes");
+        // printBytesInHex(inputAssets, ASSET_TAG_LEN * num_inputs, "inputAssets");
+        // printBytesInHex(inputAbfs, BLINDING_FACTOR_LEN * num_inputs, "inputAbfs");
+        // printBytesInHex(inputGenerators, ASSET_GENERATOR_LEN * num_inputs, "inputGenerators");
+
         // get surjection proof
         ret = wally_asset_surjectionproof(temp->clearAsset, ASSET_TAG_LEN,
                                     temp->assetBlindingFactor, BLINDING_FACTOR_LEN,
@@ -332,7 +342,7 @@ int blindOutputs(struct blindingInfo *initialInput) {
         }
 
         // generate rangeproof for this output
-        ret = wally_asset_rangeproof(temp->clearValue,
+        ret = wally_asset_rangeproof(temp->satoshi,
                                         temp->blindingPubkey, EC_PUBLIC_KEY_LEN,
                                         ephemeralPrivkey, EC_PRIVATE_KEY_LEN,
                                         temp->clearAsset, ASSET_TAG_LEN,
@@ -362,28 +372,30 @@ cleanup:
 }
 
 
-int populateBlindingInfoForProposalTx(struct blindingInfo *initialInput, const unsigned char *newAssetID, const char *assetCAddress, const char *changeCAddress) {
+int populateTxInfoForProposalTx(struct txInfo *initialInput, const unsigned char *newAssetID, const char *assetCAddress, const char *changeCAddress) {
     int ret = 1;
-    struct blindingInfo *temp;
+    struct txInfo *temp;
     unsigned char *lastVbf;
 
     // initiate the issuance input
-    if (!(temp = initBlindingInfo())) {
-        printf("Failed to initialize blindingInfo struct\n");
+    if (!(temp = initTxInfo())) {
+        printf("Failed to initialize txInfo struct\n");
         goto cleanup;
     }
 
     // now add the new asset ID
     memcpy(temp->clearAsset, newAssetID, SHA256_LEN);
-    // set isNewAsset isInput to 1 and clearValue to issuance default amount
+    // set isNewAsset isInput to 1 and satoshi to issuance default amount
     temp->isNewAsset = 1;
     temp->isInput = 1;
-    temp->clearValue = ISSUANCE_ASSET_AMT;
+    temp->satoshi = ISSUANCE_ASSET_AMT;
 
 
     // we generate random blinding factors for the issuance, since we can't take it from an UTXO like we did with the "real" input
     getRandomBytes(temp->assetBlindingFactor, BLINDING_FACTOR_LEN);
     getRandomBytes(temp->valueBlindingFactor, BLINDING_FACTOR_LEN);
+    // printBytesInHex(temp->assetBlindingFactor, BLINDING_FACTOR_LEN, "issuance abf");
+    // printBytesInHex(temp->valueBlindingFactor, BLINDING_FACTOR_LEN, "issuance vbf");
 
     // create asset generator
     if (generateAssetGenerator(temp)) {
@@ -398,17 +410,17 @@ int populateBlindingInfoForProposalTx(struct blindingInfo *initialInput, const u
     }
 
     // add the issuance input to our list
-    addBlindingInfoToList(initialInput, temp);
+    addTxInfoToList(initialInput, temp);
 
     // same with the change output, which is simply the asset spent by the proposer
-    if (!(temp = initBlindingInfo())) {
-        printf("Failed to initialize blindingInfo struct\n");
+    if (!(temp = initTxInfo())) {
+        printf("Failed to initialize txInfo struct\n");
         goto cleanup;
     }
 
-    // clearValue clearAsset must be the same than our initialInput
+    // satoshi clearAsset must be the same than our initialInput
     memcpy(temp->clearAsset, initialInput->clearAsset, SHA256_LEN);
-    temp->clearValue = initialInput->clearValue;
+    temp->satoshi = initialInput->satoshi;
     temp->scriptPubkey_len = WALLY_SCRIPTPUBKEY_P2WPKH_LEN; // we assume that the destination for the change is another single sig controlled by the proposer
     // allocate the script pubkey
     if (!(temp->scriptPubkey = calloc(temp->scriptPubkey_len, sizeof(*(temp->scriptPubkey))))) {
@@ -426,6 +438,8 @@ int populateBlindingInfoForProposalTx(struct blindingInfo *initialInput, const u
     // we generate random blinding factors for the output
     getRandomBytes(temp->assetBlindingFactor, BLINDING_FACTOR_LEN);
     getRandomBytes(temp->valueBlindingFactor, BLINDING_FACTOR_LEN);
+    // printBytesInHex(temp->assetBlindingFactor, BLINDING_FACTOR_LEN, "change abf");
+    // printBytesInHex(temp->valueBlindingFactor, BLINDING_FACTOR_LEN, "change vbf");
 
     // asset generator
     if (generateAssetGenerator(temp)) {
@@ -440,17 +454,17 @@ int populateBlindingInfoForProposalTx(struct blindingInfo *initialInput, const u
     }
 
     // add the change output to our list
-    addBlindingInfoToList(initialInput, temp);
+    addTxInfoToList(initialInput, temp);
 
     // now the same with the newAsset output
-    if (!(temp = initBlindingInfo())) {
-        printf("Failed to initialize blindingInfo struct\n");
+    if (!(temp = initTxInfo())) {
+        printf("Failed to initialize txInfo struct\n");
         goto cleanup;
     }
     // now set isNewAsset and other relevant data
     memcpy(temp->clearAsset, newAssetID, SHA256_LEN);
     temp->isNewAsset = 1;
-    temp->clearValue = ISSUANCE_ASSET_AMT;
+    temp->satoshi = ISSUANCE_ASSET_AMT;
     temp->scriptPubkey_len = WALLY_SCRIPTPUBKEY_P2WSH_LEN; // we assume that the destination for the new asset is a multisig
     // allocate the script pubkey
     if (!(temp->scriptPubkey = calloc(temp->scriptPubkey_len, sizeof(*(temp->scriptPubkey))))) {
@@ -485,7 +499,7 @@ int populateBlindingInfoForProposalTx(struct blindingInfo *initialInput, const u
     // printBytesInHex(temp->assetBlindingFactor, BLINDING_FACTOR_LEN, "new asset abf");
     // printBytesInHex(temp->valueBlindingFactor, BLINDING_FACTOR_LEN, "new asset vbf");
     // add the new asset output to our list
-    addBlindingInfoToList(initialInput, temp);
+    addTxInfoToList(initialInput, temp);
  
     // compute the value blinding factor for the last output (we need all the abf and the others vbf before doing that)
     if ((ret = getLastVbf(initialInput, lastVbf)) != 0) {
@@ -501,9 +515,9 @@ cleanup:
     return ret;
 }
 
-int addBlindedOutputs(struct wally_tx *newTx, struct blindingInfo *initialInput) {
+int addBlindedOutputs(struct wally_tx *newTx, struct txInfo *initialInput) {
     int ret = 1;
-    struct blindingInfo *temp;
+    struct txInfo *temp;
     char *test_hex;
 
     // loop up to the first output
@@ -514,7 +528,13 @@ int addBlindedOutputs(struct wally_tx *newTx, struct blindingInfo *initialInput)
 
     // loop through all the rest and add an output to the transaction
     while (temp) {
-        printBytesInHex(temp->surjectionproof, temp->surjectionproof_len, "surjectionproof");
+        // printBytesInHex(temp->scriptPubkey, temp->scriptPubkey_len, "script pubkey");
+        // printBytesInHex(temp->generator, WALLY_TX_ASSET_CT_ASSET_LEN, "generator");
+        // printBytesInHex(temp->valueCommitment, WALLY_TX_ASSET_CT_VALUE_LEN, "commitment");
+        // printBytesInHex(temp->nonce, EC_PUBLIC_KEY_LEN, "ephemeral pubkey");
+        // printBytesInHex(temp->surjectionproof, temp->surjectionproof_len, "surjectionproof");
+        // printBytesInHex(temp->rangeproof, temp->rangeproof_len, "rangeproof");
+
         ret = wally_tx_add_elements_raw_output(newTx,
                                                 temp->scriptPubkey, temp->scriptPubkey_len,
                                                 temp->generator, WALLY_TX_ASSET_CT_ASSET_LEN, // this says `asset`, but it seems it's actually the generator
@@ -548,8 +568,12 @@ int getIssuanceNonce(const unsigned char *prevTxID, uint32_t index, const unsign
     index_array[2] = (index >> 8) & 0xff;    
     index_array[3] = index & 0xff;    
 
+    printBytesInHex(index_array, sizeof(index_array), "index_array");
+
     memcpy(message, prevTxID, SHA256_LEN);
     memcpy(message + SHA256_LEN, index_array, sizeof(index_array));
+
+    printBytesInHex(message, sizeof(message), "message");
 
     if ((ret = wally_scriptpubkey_op_return_from_bytes(message, sizeof(message), 0, script, sizeof(script), &written)) != 0) {
         printf("wally_scriptpubkey_op_return_from_bytes failed with %d error code\n", ret);
@@ -564,17 +588,24 @@ int getIssuanceNonce(const unsigned char *prevTxID, uint32_t index, const unsign
     return ret;
 }
 
-int addIssuanceInput(struct wally_tx *newTx, struct blindingInfo *initialInput, const unsigned char *prevTxID, const unsigned char *contractHash, const unsigned char *masterBlindingKey) {
+int addIssuanceInput(struct wally_tx *newTx, struct txInfo *initialInput, const unsigned char *contractHash) {
     /* complete the provided issuance input and add it to newTx */
-    struct blindingInfo *issuance;
+    struct txInfo *issuance;
     uint32_t vout;
-    unsigned char emptyNonce[WALLY_TX_ASSET_TAG_LEN] = { 0 };
     unsigned char nonce[EC_PRIVATE_KEY_LEN];
+    unsigned char *masterBlindingKey;
+    unsigned char *prevTxID;
     int ret = 1;
     size_t written;
 
     // get the vout
     vout = (uint32_t)initialInput->vout;
+
+    // get the master blinding key 
+    masterBlindingKey = initialInput->masterBlindingKey;
+
+    // get the prevTxID
+    prevTxID = initialInput->prevTxID;
 
     // set temp to the issuance input 
     issuance = initialInput->next;
@@ -589,9 +620,10 @@ int addIssuanceInput(struct wally_tx *newTx, struct blindingInfo *initialInput, 
         return ret;
     }
 
+    // printBytesInHex(nonce, sizeof(nonce), "nonce");
 
     // generate rangeproof for the issuance input
-    ret = wally_asset_rangeproof_with_nonce(issuance->clearValue,
+    ret = wally_asset_rangeproof_with_nonce(issuance->satoshi,
                                     nonce, EC_PRIVATE_KEY_LEN, // nonce we compute with getIssuanceNonce()
                                     issuance->clearAsset, ASSET_TAG_LEN,
                                     issuance->assetBlindingFactor, BLINDING_FACTOR_LEN,
@@ -616,7 +648,7 @@ int addIssuanceInput(struct wally_tx *newTx, struct blindingInfo *initialInput, 
                                             INPUT_DEACTIVATE_SEQUENCE, // sequence must be set at 0xffffffff if not used
                                             NULL, 0, // scriptSig and its length
                                             NULL, // witness stack
-                                            emptyNonce, WALLY_TX_ASSET_TAG_LEN, // nonce is ecdh(pubkey, privkey). Issuance has an empty nonce
+                                            NULL, 0, // issuance has an empty nonce
                                             contractHash, WALLY_TX_ASSET_TAG_LEN, // the contract hash provided in input, only reversed
                                             issuance->valueCommitment, ASSET_COMMITMENT_LEN, // blinded issuance amount obtained with wally_asset_value_commitment()
                                             NULL, 0, // blinded token amount, this should be 0

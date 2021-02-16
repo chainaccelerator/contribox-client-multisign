@@ -8,9 +8,9 @@ void    clearThenFree(void *p, size_t len) {
     }
 }
 
-void    freeBlindingInfo(struct blindingInfo **initialInput) {
-    struct blindingInfo *temp;
-    struct blindingInfo *to_clear;
+void    freeTxInfo(struct txInfo **initialInput) {
+    struct txInfo *temp;
+    struct txInfo *to_clear;
 
     if (!initialInput || !*initialInput) {
         return;
@@ -18,7 +18,6 @@ void    freeBlindingInfo(struct blindingInfo **initialInput) {
 
     to_clear = *initialInput;
     while (to_clear) {
-        clearThenFree(to_clear->clearAsset, ASSET_TAG_LEN);
         clearThenFree(to_clear->assetBlindingFactor, BLINDING_FACTOR_LEN);
         clearThenFree(to_clear->valueBlindingFactor, BLINDING_FACTOR_LEN);
         clearThenFree(to_clear->scriptPubkey, to_clear->scriptPubkey_len);
@@ -33,19 +32,25 @@ void    freeBlindingInfo(struct blindingInfo **initialInput) {
     }
 }
 
-struct blindingInfo *initBlindingInfo() {
-    struct blindingInfo *res;
+struct txInfo *initTxInfo() {
+    struct txInfo *res;
 
     if (!(res = calloc(1, sizeof(*res)))) {
         printf(MEMORY_ERROR);
         return NULL;
     }
 
-    if ((!(res->clearAsset = calloc(ASSET_TAG_LEN, sizeof(unsigned char)))) || 
-        ((!(res->assetBlindingFactor = calloc(BLINDING_FACTOR_LEN, sizeof(unsigned char)))) ||
-        ((!(res->valueBlindingFactor = calloc(BLINDING_FACTOR_LEN, sizeof(unsigned char))))))) {
+    // if ((!(res->clearAsset = calloc(ASSET_TAG_LEN, sizeof(unsigned char)))) || 
+    //     ((!(res->assetBlindingFactor = calloc(BLINDING_FACTOR_LEN, sizeof(unsigned char)))) ||
+    //     ((!(res->valueBlindingFactor = calloc(BLINDING_FACTOR_LEN, sizeof(unsigned char))))))) {
+    //         printf(MEMORY_ERROR);
+    //         freeTxInfo(&res);
+    //         return NULL;
+    //     }
+    if ((!(res->assetBlindingFactor = calloc(BLINDING_FACTOR_LEN, sizeof(unsigned char)))) ||
+        ((!(res->valueBlindingFactor = calloc(BLINDING_FACTOR_LEN, sizeof(unsigned char)))))) {
             printf(MEMORY_ERROR);
-            freeBlindingInfo(&res);
+            freeTxInfo(&res);
             return NULL;
         }
 
@@ -159,7 +164,7 @@ unsigned char   *getWitnessProgram(const unsigned char *script, const size_t scr
     size_t written;
 
     // test the script to see if it is a valid pubkey
-    if ((ret = wally_ec_public_key_verify(script, script_len)) != 0) {
+    if (wally_ec_public_key_verify(script, script_len)) { // return != 0 means the script is not a valid pubkey
         if (!(program = malloc(WALLY_SCRIPTPUBKEY_P2WSH_LEN))) {
             printf(MEMORY_ERROR);
             return NULL;

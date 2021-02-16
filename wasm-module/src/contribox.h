@@ -32,14 +32,19 @@
 
 #define MEMORY_ERROR "memory allocation error\n"
 
-struct blindingInfo {
+struct txInfo {
     size_t              isInput; // if 1, the struct is relative to an input; otherwise it's an output
     size_t              isNewAsset; // 1 if the asset newly generated ; otherwise it is an asset that is spent from previous UTXO
+    unsigned char       prevTxID[WALLY_TXHASH_LEN]; // used only if isInput == 1 and isNewAsset == 0. Disregard it otherwise
     size_t              vout; // the vout of the previous UTXO, used only if isInput == 1 and isNewAsset == 0. Disregard it otherwise
-    unsigned char       *clearAsset; 
+    unsigned char       clearAsset[WALLY_TX_ASSET_CT_ASSET_LEN]; // '\1' + 32B asset tag. We can trim the first byte in case we only need the 32B tag
+    uint64_t            satoshi; // value in satoshis. We won't necessarily need it
+    unsigned char       clearValue[WALLY_TX_ASSET_CT_VALUE_UNBLIND_LEN]; // value obtained with wally_tx_confidential_value_from_satoshi()
+
+    // only if blinded transaction 
+    unsigned char       masterBlindingKey[SHA512_LEN]; 
     unsigned char       *assetBlindingFactor;
     unsigned char       *valueBlindingFactor;
-    uint64_t            clearValue;
     unsigned char       generator[ASSET_GENERATOR_LEN];
     unsigned char       rangeproof[ASSET_RANGEPROOF_MAX_LEN];
     size_t              rangeproof_len; // this is the actual size written for the rangeproof
@@ -52,14 +57,14 @@ struct blindingInfo {
     size_t              surjectionproof_len;
     char                *address; 
     unsigned char       blindingPubkey[EC_PUBLIC_KEY_LEN];
-    unsigned char       nonce[EC_PUBLIC_KEY_LEN]; // this is the pubkey for the ephemeral privkey used for blinding an output, and not to be confused with nonce_hash
+    unsigned char       nonce[EC_PUBLIC_KEY_LEN]; // this is the pubkey for the ephemeral privkey used for blinding an output. It's empty for first issuances
 
-    struct blindingInfo *next;
+    struct txInfo *next;
 };
 
 void clearThenFree(void *p, size_t len);
-void freeBlindingInfo(struct blindingInfo **initialInput);
-struct blindingInfo *initBlindingInfo();
+void freeTxInfo(struct txInfo **initialInput);
+struct txInfo *initTxInfo();
 
 /** Fill an array of array_len size with random bytes
 *   THIS IS NOT CRYPTOGRAPHICALLY SECURE, we use the rand() function
@@ -86,18 +91,18 @@ void    printBytesInHex(const unsigned char *toPrint, const size_t len, const ch
 void    printBytesInHexReversed(const unsigned char *toPrint, const size_t len, const char *label);
 unsigned char *getWitnessProgram(const unsigned char *script, const size_t script_len, int *isP2WSH);
 int analyzeCAddress(const char *CAddress, char *address, unsigned char blindingPubkey[EC_PUBLIC_KEY_LEN], unsigned char *scriptPubkey, size_t scriptPubkey_len);
-struct blindingInfo *unblindTxOutput(const struct wally_tx_output *output, const unsigned char *masterBlindingKey);
+struct txInfo *unblindTxOutput(const struct wally_tx_output *output, const unsigned char *masterBlindingKey);
 int getNewAssetID(const unsigned char *txID, const uint32_t vout, const unsigned char *reversed_contractHash, unsigned char *newAssetID);
-unsigned long long *getValuesList(const struct blindingInfo *initialInput, size_t *values_len, size_t *num_inputs);
-unsigned char *getAbfArray(const struct blindingInfo *initialInput, const size_t values_len);
-unsigned char *getVbfArray(const struct blindingInfo *initialInput, const size_t values_len);
-int getLastVbf(const struct blindingInfo *initialInput, unsigned char *lastVbf);
-void    addBlindingInfoToList(struct blindingInfo *firstInput, struct blindingInfo *new);
-int generateAssetGenerator(struct blindingInfo *element);
-int generateValueCommitment(struct blindingInfo *element);
-int blindOutputs(struct blindingInfo *initialInput);
+unsigned long long *getValuesList(const struct txInfo *initialInput, size_t *values_len, size_t *num_inputs);
+unsigned char *getAbfArray(const struct txInfo *initialInput, const size_t values_len);
+unsigned char *getVbfArray(const struct txInfo *initialInput, const size_t values_len);
+int getLastVbf(const struct txInfo *initialInput, unsigned char *lastVbf);
+void    addTxInfoToList(struct txInfo *firstInput, struct txInfo *new);
+int generateAssetGenerator(struct txInfo *element);
+int generateValueCommitment(struct txInfo *element);
+int blindOutputs(struct txInfo *initialInput);
 
-/*  populateBlindingInfoForProposalTx builds a linked list that starts with the UTXO we spend and add:
+/*  populateTxInfoForProposalTx builds a linked list that starts with the UTXO we spend and add:
 *   - an issuance input (wich is not really an input but can be considered one for blinding purpose)
 *   - an output we will send the newly created asset to
 *   - an output we will send the asset in the spent UTXO (change)
@@ -111,16 +116,18 @@ int blindOutputs(struct blindingInfo *initialInput);
 *   - the scriptpubkey
 *   - the unconfidential address 
 **/
-int populateBlindingInfoForProposalTx(struct blindingInfo *initialInput, const unsigned char *newAssetID, const char *assetCAddress, const char *changeCAddress);
+int populateTxInfoForProposalTx(struct txInfo *initialInput, const unsigned char *newAssetID, const char *assetCAddress, const char *changeCAddress);
 
-/* Loop through all the blindingInfo we have for outputs and add outputs to a transaction */
-int addBlindedOutputs(struct wally_tx *newTx, struct blindingInfo *initialInput);
+/* Loop through all the txInfo we have for outputs and add outputs to a transaction */
+int addBlindedOutputs(struct wally_tx *newTx, struct txInfo *initialInput);
 
 /* Inspired from what is done in Elements, we create an OP_RETURN + prevout script and derive a key from it
-* using the master blinding key. This way we have a determinist nonce and garantee that it won't be reused
+* using the master blinding key. 
 */
 int getIssuanceNonce(const unsigned char *prevTxID, uint32_t index, const unsigned char *masterBlindingKey, unsigned char *nonce);
 
-int addIssuanceInput(struct wally_tx *newTx, struct blindingInfo *initialInput, const unsigned char *prevTxID, const unsigned char *contractHash, const unsigned char *masterBlindingKey);
+int addIssuanceInput(struct wally_tx *newTx, struct txInfo *initialInput, const unsigned char *contractHash);
+int addOutputToTx(struct wally_tx *tx, const char *address, const size_t isP2WSH, const size_t amount, const unsigned char *asset);
+int addInputToTx(struct wally_tx *tx, const unsigned char *prevTxID, const unsigned char *contractHash);
 
 #endif /*CONTRIBOX_H*/

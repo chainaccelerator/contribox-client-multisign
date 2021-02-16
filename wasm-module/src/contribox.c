@@ -533,14 +533,102 @@ char *getAddressFromXpub(const char *xpub, const uint32_t *hdPath, const size_t 
     return address;
 }
 
+char *createUnconfidentialTransactionWithNewAsset(struct txInfo *initialInput, const unsigned char *newAssetID, const unsigned char *reversed_contractHash, const char *assetAddress, const char *changeAddress) {
+    unsigned char changeAsset[WALLY_TX_ASSET_CT_ASSET_LEN]; 
+    unsigned char newAsset[WALLY_TX_ASSET_CT_ASSET_LEN]; 
+    struct wally_tx *newTx = NULL;
+    char *newTx_hex = NULL;
+    int ret;
+    size_t written;
+
+    // copy the new asset ID with a leading '\1'
+    memcpy(newAsset, "\1", 1); // we add a '\1' byte before the asset tag
+    memcpy(newAsset + 1, newAssetID, ASSET_TAG_LEN);
+
+    printBytesInHex(newAsset, sizeof(newAsset), "new asset");
+
+    // copy the spent asset with a leading '\1'
+    memcpy(changeAsset, initialInput->clearAsset, WALLY_TX_ASSET_CT_ASSET_LEN);
+
+    printBytesInHex(changeAsset, sizeof(changeAsset), "change asset");
+
+    // create a new empty transaction and fill it
+    wally_tx_init_alloc(2, 0, 0, 0, &newTx);
+
+    // add the change output to the tx
+    if ((ret = addOutputToTx(newTx, changeAddress, 0, initialInput->satoshi, changeAsset)) != 0) {
+        printf("addOutputToTx failed for change output\n");
+        goto cleanup;
+    }
+
+    // add the new asset output to the tx
+    if ((ret = addOutputToTx(newTx, assetAddress, 1, ISSUANCE_ASSET_AMT, newAsset)) != 0) {
+        printf("addOutputToTx failed for new asset output\n");
+        goto cleanup;
+    }
+
+    // add the input including the unblinded issuance
+    if ((ret = addInputToTx(newTx, initialInput->prevTxID, reversed_contractHash)) != 0) {
+        printf("addOutputToTx failed for input\n");
+        goto cleanup;
+    }
+
+    // get the tx in hex form
+    if ((ret = wally_tx_to_hex(newTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &newTx_hex)) != 0) {
+        printf("wally_tx_to_hex failed with %d error code\n", ret);
+    }
+
+cleanup:
+    wally_tx_free(newTx);
+
+    return newTx_hex;
+}
+
+
+char *createConfidentialTransactionWithNewAsset(struct txInfo *initialInput, const unsigned char *newAssetID, const unsigned char *reversed_contractHash, const char *assetAddress, const char *changeAddress) {
+    struct wally_tx *newTx = NULL;
+    char *newTx_hex = NULL;
+    int ret;
+    size_t written;
+
+    // initialize all the txInfo we'll need
+    if (populateTxInfoForProposalTx(initialInput, newAssetID, assetAddress, changeAddress) != 0) {
+        printf("Failed to populate blinding infos\n");
+        goto cleanup;
+    }
+
+    // create a new empty transaction and fill it
+    wally_tx_init_alloc(2, 0, 0, 0, &newTx);
+
+    // create and add the outputs
+    if ((ret = addBlindedOutputs(newTx, initialInput)) != 0) {
+        printf("addBlindedOutputs failed\n");
+        goto cleanup;
+    }
+    
+    // add asset issuance
+    if ((ret = addIssuanceInput(newTx, initialInput, reversed_contractHash)) != 0) {
+        printf("addIssuanceInput failed\n");
+        goto cleanup;
+    }
+
+    // get the tx in hex form
+    if ((ret = wally_tx_to_hex(newTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &newTx_hex)) != 0) {
+        printf("wally_tx_to_hex failed with %d error code\n", ret);
+        goto cleanup;
+    }
+cleanup:
+    wally_tx_free(newTx);
+
+    return newTx_hex;
+} 
 
 EMSCRIPTEN_KEEPALIVE
-char *createBlindedTransactionWithNewAsset(const char *prevTx_hex, const char *contractHash_hex, const char *masterBlindingKey_hex, const char *assetCAddress, const char *changeCAddress) {
+char *createTransactionWithNewAsset(const char *prevTx_hex, const char *contractHash_hex, const char *masterBlindingKey_hex, const char *assetAddress, const char *changeAddress, const size_t blind) {
     unsigned char *masterBlindingKey;
     size_t key_len;
     struct wally_tx *prevTx;
-    unsigned char prevTxID[WALLY_TXHASH_LEN];
-    struct blindingInfo *spentUTXOInput = NULL;
+    struct txInfo *spentUTXOInput = NULL;
     struct wally_tx *newTx = NULL;
     char *newTx_hex = NULL;
     unsigned char newAssetID[SHA256_LEN];
@@ -549,46 +637,57 @@ char *createBlindedTransactionWithNewAsset(const char *prevTx_hex, const char *c
     int ret = 1;
     size_t written;
 
+    // BEGINNING OF THE CONFIDENTIAL/UNCONFIDENTIAL COMMON PART
     // convert hex master blinding key to bytes
     if (!(masterBlindingKey = convertHexToBytes(masterBlindingKey_hex, &key_len))) {
         printf("convertHexToBytes failed\n");
         goto cleanup;
     }
 
-    // convert hex tx to struct
+    // convert hex prevTx to struct
     if ((ret = wally_tx_from_hex(prevTx_hex, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &prevTx)) != 0) {
         printf("wally_tx_from_hex failed with %d error code\n", ret);
         goto cleanup;
     }
 
-    // get previous txid
-    if ((ret = wally_tx_get_txid(prevTx, prevTxID, WALLY_TXHASH_LEN)) != 0) {
-        printf("wally_tx_get_txid failed with %d error code\n", ret);
-        goto cleanup;
-    }
+    if (blind) {
+        spentUTXOInput = unblindTxOutput(&(prevTx->outputs[0]), masterBlindingKey); // we assume for now that the UTXO we can spend is always at index 0
     
-    // we loop on each output until we find one we can unblind with our keys
-    for (size_t i = 0; i < (prevTx->num_outputs); i++) { // num_outputs should be either 1 or 2 for now, no fee output
-        printf("Attempting to unblind output %zu\n", i);
-        spentUTXOInput = unblindTxOutput(&(prevTx->outputs[i]), masterBlindingKey);
         if (!spentUTXOInput) {
-            printf("unblindTxOutput failed\n");
-            continue;
+            printf("Found no output that can be unblinded in previous transaction at index 0. Aborting.\n");
+            goto cleanup;
         }
-        spentUTXOInput->vout = i; // should be either 0 or 1 for now
-        spentUTXOInput->isInput = 1; // Since this will be our transaction's input, set isInput to 1
+
+        // copy the master blinding key to our new struct, for convenience
+        memcpy(spentUTXOInput->masterBlindingKey, masterBlindingKey, SHA512_LEN);
+
         if (generateAssetGenerator(spentUTXOInput)) { // we need to compute the asset generator for later use
             printf("generateAssetGenerator failed\n");
             goto cleanup;
         }
-        break;
+    } else {
+        if (!(spentUTXOInput = initTxInfo())) {
+            printf("Failed to initialize txInfo struct\n");
+            goto cleanup; 
     }
 
-    if (!spentUTXOInput) {
-        printf("Found no output that can be unblinded in previous transaction. Aborting.\n");
+        memcpy(spentUTXOInput->clearValue, prevTx->outputs[0].value, prevTx->outputs[0].value_len); // len must be 9 for unblinded value
+        if ((ret = wally_tx_confidential_value_to_satoshi(spentUTXOInput->clearValue, WALLY_TX_ASSET_CT_VALUE_UNBLIND_LEN, &(spentUTXOInput->satoshi))) != 0) {
+            printf("wally_tx_confidential_value_to_satoshi failed with %d error\n", ret);
+            goto cleanup;
+        }
+        memcpy(spentUTXOInput->clearAsset, prevTx->outputs[0].asset, prevTx->outputs[0].asset_len);
+    }
+    spentUTXOInput->isInput = 1; // Since this will be our transaction's input, set isInput to 1
+
+    // get previous txid
+    if ((ret = wally_tx_get_txid(prevTx, spentUTXOInput->prevTxID, WALLY_TXHASH_LEN)) != 0) {
+        printf("wally_tx_get_txid failed with %d error code\n", ret);
         goto cleanup;
     }
 
+    printBytesInHex(spentUTXOInput->prevTxID, WALLY_TXHASH_LEN, "prev txhash");
+    
     // the contract hash must be 32 bytes, so 64 char in hex string 
     if (strlen(contractHash_hex) != (SHA256_LEN * 2)) {
         printf("Provided contract hash is not 32B long\n");
@@ -602,44 +701,23 @@ char *createBlindedTransactionWithNewAsset(const char *prevTx_hex, const char *c
     }
 
     // get new asset id
-    if (getNewAssetID(prevTxID, spentUTXOInput->vout, reversed_contractHash, newAssetID) != 0) {
+    if (getNewAssetID(spentUTXOInput->prevTxID, spentUTXOInput->vout, reversed_contractHash, newAssetID) != 0) {
         printf("Failed getNewAssetID\n");
         goto cleanup;
     }
 
-    // initialize all the blindingInfo we'll need
-    if (populateBlindingInfoForProposalTx(spentUTXOInput, newAssetID, assetCAddress, changeCAddress) != 0) {
-        printf("Failed to populate blinding infos\n");
-        goto cleanup;
+    // END OF THE CONFIDENTIAL/UNCONFIDENTIAL COMMON PART
+
+    if (blind) {
+        newTx_hex = createConfidentialTransactionWithNewAsset(spentUTXOInput, newAssetID, reversed_contractHash, assetAddress, changeAddress);
+    } else {
+        newTx_hex = createUnconfidentialTransactionWithNewAsset(spentUTXOInput, newAssetID, reversed_contractHash, assetAddress, changeAddress);
     }
-
-    // create a new empty transaction and fill it
-    wally_tx_init_alloc(2, 0, 0, 0, &newTx);
-
-    // create and add the outputs
-    if ((ret = addBlindedOutputs(newTx, spentUTXOInput)) != 0) {
-        printf("addBlindedOutputs failed\n");
-        goto cleanup;
-    }
-
-    // add asset issuance
-    if ((ret = addIssuanceInput(newTx, spentUTXOInput, prevTxID, reversed_contractHash, masterBlindingKey)) != 0) {
-        printf("addIssuanceInput failed\n");
-        goto cleanup;
-    }
-
-    // get the tx in hex form
-    if ((ret = wally_tx_to_hex(newTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &newTx_hex)) != 0) {
-        printf("wally_tx_to_hex failed with %d error code\n", ret);
-        goto cleanup;
-    }
-
 
 cleanup:
-    freeBlindingInfo(&spentUTXOInput);
+    freeTxInfo(&spentUTXOInput);
     clearThenFree(reversed_contractHash, contractHash_len);
     clearThenFree(masterBlindingKey, key_len);
-    wally_tx_free(newTx);
     wally_tx_free(prevTx);
 
     return newTx_hex;
