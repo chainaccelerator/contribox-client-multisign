@@ -3,7 +3,6 @@
 
 #include <string.h>
 #include <stdio.h>
-#include <time.h>
 #include <limits.h>
 
 #include "emscripten.h"

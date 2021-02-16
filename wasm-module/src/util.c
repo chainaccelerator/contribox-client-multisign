@@ -185,6 +185,7 @@ unsigned char   *getWitnessProgram(const unsigned char *script, const size_t scr
             printf(MEMORY_ERROR);
             return NULL;
         }
+
         // the script is actually a pubkey, we generate a P2WPKH
         if ((ret = wally_witness_program_from_bytes(script, 
                                                     script_len, 
@@ -196,6 +197,7 @@ unsigned char   *getWitnessProgram(const unsigned char *script, const size_t scr
             clearThenFree(program, WALLY_SCRIPTPUBKEY_P2WPKH_LEN);
             return NULL;
         }
+
         *isP2WSH = 0;
     }
 

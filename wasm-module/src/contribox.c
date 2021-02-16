@@ -181,10 +181,7 @@ char    *encryptFileWithPassword(const char *userPassword, const char *toEncrypt
     };
 
     // get initialization vector of 16 bytes
-    srand((unsigned int)time(NULL));
-    for (int i = 0; i < AES_BLOCK_LEN; i++) {
-        initVector[i] = rand();
-    }
+    getRandomBytes(initVector, AES_BLOCK_LEN);
 
     // get the length of the cipher
     cipher_len = strlen(toEncrypt) / 16 * 16 + 16;
