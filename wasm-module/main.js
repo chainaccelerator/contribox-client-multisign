@@ -253,10 +253,16 @@ function getXpub(encryptedWallet, userPassword) {
   return xpub;
 }
 
+function getXprv(encryptedWallet, userPassword) {
+  // get the xprv from the encrypted wallet and compute the xpub from it
+  if ((clearWallet = decryptWallet(encryptedWallet, userPassword)) === "") {
+    console.error("decryptWallet failed");
     return "";
   }
 
-  return xpub;
+  let wallet_obj = JSON.parse(clearWallet);
+
+  return wallet_obj.xprv;
 }
 
 function getSeed(encryptedWallet, userPassword) {
@@ -410,6 +416,51 @@ function createProposalTx(previousTx, contractHash, assetAddress, changeAddress,
   }
 
   return newTx;
+}
+
+function signProposalTx(unsignedTx, address, hdPath, encryptedWallet, userPassword) {
+  let xprv;
+  let signedTx_ptr;
+  let signedTx;
+  let signingKey_ptr;
+  let signingKey;
+
+  console.log("path is " + hdPath);
+
+  path = parsePath(hdPath);
+  console.log("parsed path is " + path);
+
+  // get the xprv from the wallet 
+  if ((xprv = getXprv(encryptedWallet, userPassword)) === "") {
+    console.error("getXprv failed");
+    return "";
+  }
+
+  console.log("xprv is " + xprv);
+
+  console.log("path is " + path);
+
+  // find the right key 
+  if ((signingKey_ptr = ccall('getSigningKey', 'number', ['string', 'string', 'array', 'number'], [xprv, address, path, path.length])) === "") {
+    console.error("getSigningKey failed");
+    return "";
+  }
+
+  if ((signingKey = convertToString(signingKey_ptr, "signingKey")) === "") {
+    return "";
+  }
+
+  // sign the tx
+  if ((signedTx_ptr = ccall('signProposalTx', 'number', ['string', 'string'], [unsignedTx, signingKey])) === "") {
+    console.error("signProposalTx failed");
+    return "";
+  }
+
+  if ((signedTx = convertToString(signedTx_ptr, "signedTx")) === "") {
+    return "";
+  }
+
+  return signedTx;
 }
 
 function decodeTx(Tx) {
