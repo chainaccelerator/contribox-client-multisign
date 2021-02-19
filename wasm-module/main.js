@@ -71,49 +71,7 @@ function cleanUp() {
   ccall('wally_cleanup', 'number', ['number'], [0]);
 }
 
-function parsePath(hdPath) {
-  // split the hdPath string
-  rawPath = hdPath.split("/");
-
-  let path = rawPath.map(function(x) {
-    let hardened = false;
-    if (x.charAt(x.length - 1) === 'h' || x.charAt(x.length - 1) === '\'') {
-      hardened = true;
-      x = x.slice(0, -1);
-    }
-    var reg = new RegExp('^[0-9]+$');
-    if (!reg.test(x)) {
-      console.error("path is incorrect: must only contain numeric characters");
-      return -1;
-    }
-    if (Number(x) >= HARDENED_INDEX) {
-      console.error("path is incorrect: index must be less than 2^31");
-      return -1;
-    }
-    if (hardened) {
-      return Number(x) + HARDENED_INDEX;
-    }
-    return Number(x);
-  });
-
-  // check that all index is > 0
-  if (!path.every(function(x) {
-    return x >= 0;
-  })) {
-    return "";
-  }
-
-  return path;
-}
-
-
-function generateWallet(userPassword, mnemonic) {
-  let Wallet = {
-      xprv: "",
-      seedWords: "",
-      masterBlindingKey: ""
-  }
-
+function generateWallet(mnemonic) {
   let passphrase = PASSPHRASE; // for now we can define passphrase as a constant, e.g. the application name.
 
   /** I don't think it's useful to leave the user choose a passphrase along with his seed, 
@@ -142,44 +100,31 @@ function generateWallet(userPassword, mnemonic) {
     return "";
   }
 
-  // We compute the master blinding key
-  if ((masterBlindingKey_ptr = ccall('generateMasterBlindingKey', 'number', ['string'], [seed_hex])) === "") {
-    console.log("generateMasterBlindingKey failed");
+  // derive the xpub from the xprv
+  if ((xpub_ptr = ccall('xpubFromXprv', 'number', ['string'], [xprv])) === "") {
+    console.error("xpubFromXprv failed");
     return "";
-  }
+  };
 
-  let masterBlindingKey_hex = UTF8ToString(masterBlindingKey_ptr);
-
-  if (ccall('wally_free_string', 'number', ['number'], [masterBlindingKey_ptr]) !== 0) {
-    console.log("masterBlindingKey_ptr wasn't freed");
+  if ((xpub = convertToString(xpub_ptr, "xpub")) === "") {
     return "";
   }
 
   // write all the relevant data to our wallet obj
-  Wallet.xprv = xprv;
-  Wallet.masterBlindingKey= masterBlindingKey_hex;
-  Wallet.seedWords = mnemonic;
+  let Wallet = {
+    "xprv": xprv,
+    "xpub": xpub,
+    "hdPath": "0h/0", // we hardcode it for now
+    "range": 100, // it means we'll use keys between 0h/0 and 0h/100
+    "seedWords": mnemonic
+  }
   
-  // Encrypt the wallet in Json form with user password
-  if ((encryptedWallet_ptr = ccall('encryptFileWithPassword', 'number', ['string', 'string'], [userPassword, JSON.stringify(Wallet)])) === "") {
-    console.log("encryptFileWithPassword failed");
-    return "";
-  }
-
-  let encryptedWallet = UTF8ToString(encryptedWallet_ptr);
-
-  // free the string malloced by libwally
-  if (ccall('wally_free_string', 'number', ['number'], [encryptedWallet_ptr]) !== 0) {
-    console.log("encryptedWallet_ptr wasn't freed");
-    return "";
-  }
-
-  // return the wallet obj in JSON format
-  return encryptedWallet;
+  // return the JSON string containing the wallet
+  return JSON.stringify(Wallet);
 }
 
-function newWallet(userPassword) {
-  console.log("Creating new wallet");
+function newWallet() {
+  console.error("Creating new wallet");
 
   // First generate some entropy to generate the seed
   // FIXME: maybe it could be safer to move entropy generation on the wasm module side
@@ -199,167 +144,20 @@ function newWallet(userPassword) {
     return "";
   }
 
-  return generateWallet(userPassword, mnemonic);
+  return generateWallet(mnemonic);
 }
 
-function restoreWallet(userPassword, mnemonic) {
-  return generateWallet(userPassword, mnemonic);
+function restoreWallet(mnemonic) {
+  return generateWallet(mnemonic);
 }
 
-function decryptWallet(encryptedWallet, userPassword) {
-  if ((clearWallet_ptr = ccall('decryptFileWithPassword', 'number', ['string', 'string'], [encryptedWallet, userPassword])) === "") {
-    console.error("decryptFileWithPassword failed");
-    return "";
-  };
-
-  if ((clearWallet = convertToString(clearWallet_ptr, "clearWallet")) === "") {
-    return "";
-  }
-
-  try {
-    JSON.parse(clearWallet);
-  } catch(e) {
-    console.error("Can't decrypt the wallet.");
-    if (e instanceof SyntaxError) {
-      alert("Failed to decrypt your wallet, check your password and try again.");
-    }
-    else {
-      alert("Unknwon Error: " + e);
-    }
-    return "";
-  }
-
-  return clearWallet;
-}
-
-function getXpub(encryptedWallet, userPassword) {
-  // get the xprv from the encrypted wallet and compute the xpub from it
-  if ((clearWallet = decryptWallet(encryptedWallet, userPassword)) === "") {
-    console.error("decryptWallet failed");
-    return "";
-  }
-  
-  let wallet_obj = JSON.parse(clearWallet);
-
-  if ((xpub_ptr = ccall('xpubFromXprv', 'number', ['string'], [wallet_obj.xprv])) === "") {
-    console.error("xpubFromXprv failed");
-    return "";
-  };
-
-  if ((xpub = convertToString(xpub_ptr, "xpub")) === "") {
-    return "";
-  }
-
-  return xpub;
-}
-
-function getXprv(encryptedWallet, userPassword) {
-  // get the xprv from the encrypted wallet and compute the xpub from it
-  if ((clearWallet = decryptWallet(encryptedWallet, userPassword)) === "") {
-    console.error("decryptWallet failed");
-    return "";
-  }
-
-  let wallet_obj = JSON.parse(clearWallet);
-
-  return wallet_obj.xprv;
-}
-
-function getSeed(encryptedWallet, userPassword) {
-  // get the seed from encrypted wallet
-  if ((clearWallet = decryptWallet(encryptedWallet, userPassword)) === "") {
-    console.error("decryptWallet failed");
-    return "";
-  }
-  
-  let wallet_obj = JSON.parse(clearWallet);
-
-  return wallet_obj.seedWords;
-}
-
-function getMasterBlindingKey(encryptedWallet, userPassword) {
-  // get the master blinding key
-  if ((clearWallet = decryptWallet(encryptedWallet, userPassword)) === "") {
-    console.error("decryptWallet failed");
-    return "";
-  }
-  
-  let wallet_obj = JSON.parse(clearWallet);
-
-  return wallet_obj.masterBlindingKey;
-}
-
-function newConfidentialAddressFromScript(script, encryptedWallet, userPassword) {
-  // Compute a new confidential address from a multisig script
-  if ((masterBlindingKey = getMasterBlindingKey(encryptedWallet, userPassword)) === "") {
-    console.error("getMasterBlindingKey failed");
-    return "";
-  }
-
-  // get the blinding key
-  if ((privateBlindingKey_ptr = ccall('getBlindingKeyFromScript', 'number', ['string', 'string'], [script, masterBlindingKey])) === 0) {
-    console.error("getBlindingKeyFromScript failed");
-    return "";
-  }
-
-  if ((privateBlindingKey = convertToString(privateBlindingKey_ptr, "privateBlindingKey")) === "") {
-    return "";
-  }
-
-  // get the unconfidential address
-  if ((address_ptr = ccall('getAddressFromScript', 'number', ['string'], [script])) === "") {
-    console.error("getaddressFromScript failed");
-    return "";
-  }
-
-  if ((address = convertToString(address_ptr, "address")) === "") {
-    return "";
-  }
-
-  // create the confidential address out of the key and the address
-  if ((confidentialAddress_ptr = ccall('getConfidentialAddressFromAddress', 'number', ['string', 'string'], [address, privateBlindingKey])) === "") {
-    console.error("getConfidentialAddressFromAddress failed");
-    return "";
-  }
-
-  if ((confidentialAddress = convertToString(confidentialAddress_ptr, "confidentialAddress")) === "") {
-    return "";
-  }
-
-  let confidentialInfo = {
-    confidentialAddress: confidentialAddress,
-    privateBlindingKey: privateBlindingKey,
-    // scriptPubkey: scriptPubkey,
-    unconfidentialAddress: address
-  }
-
-  return JSON.stringify(confidentialInfo);
-}
-
-function newConfidentialAddressFromXpub(xpub, hdPath, encryptedWallet, userPassword) {
-  let path = parsePath(hdPath);
-
-  if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'array', 'number'], [xpub, path, path.length])) === 0) {
+function newAddressFromXpub(xpub, hdPath) {
+  if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'array'], [xpub, hdPath])) === 0) {
     console.error("getPubkeyFromXpub failed");
     return "";
   }
 
   if ((pubkey = convertToString(pubkey_ptr, "pubkey")) === "") {
-    return "";
-  }
-
-  if ((masterBlindingKey = getMasterBlindingKey(encryptedWallet, userPassword)) === "") {
-    console.error("getMasterBlindingKey failed");
-    return "";
-  }
-
-  // get the blinding key
-  if ((privateBlindingKey_ptr = ccall('getBlindingKeyFromScript', 'number', ['string', 'string'], [pubkey, masterBlindingKey])) === 0) {
-    console.error("getBlindingKeyFromScript failed");
-    return "";
-  }
-
-  if ((privateBlindingKey = convertToString(privateBlindingKey_ptr, "privateBlindingKey")) === "") {
     return "";
   }
 
@@ -373,40 +171,19 @@ function newConfidentialAddressFromXpub(xpub, hdPath, encryptedWallet, userPassw
     return "";
   }
 
-  // combine both to get a confidential address
-  if ((confidentialAddress_ptr = ccall('getConfidentialAddressFromAddress', 'number', ['string', 'string'], [address, privateBlindingKey])) === 0) {
-    console.error("getConfidentialAddressFromAddress failed");
-    return "";
-  }
-
-  if ((confidentialAddress = convertToString(confidentialAddress_ptr, "confidentialAddress")) === "") {
-    return "";
-  }
-
-  let confidentialInfo = {
-    confidentialAddress: confidentialAddress,
-    privateBlindingKey: privateBlindingKey,
+  let addressInfo = {
     unconfidentialAddress: address,
     pubkey: pubkey
   }
 
-  return JSON.stringify(confidentialInfo);
+  return JSON.stringify(addressInfo);
 }
 
-function createProposalTx(previousTx, contractHash, assetAddress, changeAddress, encryptedWallet, userPassword, blind) {
-  let masterBlindingKey;
+function createIssueNftTx(previousTx, contractHash, assetAddress, changeAddress) {
   let newTx; 
 
-  // FIXME: check if the provided addresses are confidential if blind == 1, fail now if one or both are not.
-
-  // get the master blinding key
-  if ((masterBlindingKey = getMasterBlindingKey(encryptedWallet, userPassword)) === "") {
-    console.error("getMasterBlindingKey failed");
-    return "";
-  }
-
-  // call createTransactionWithNewAsset with the righ blind flag
-  if ((newTx_ptr = ccall('createTransactionWithNewAsset', 'number', ['string', 'string', 'string', 'string', 'string', 'number'], [previousTx, contractHash, masterBlindingKey, assetAddress, changeAddress, blind])) === 0) {
+  // call createTransactionWithNewAsset
+  if ((newTx_ptr = ccall('createTransactionWithNewAsset', 'number', ['string', 'string', 'string', 'string', 'string', 'number'], [previousTx, contractHash, assetAddress, changeAddress])) === 0) {
     console.error("createBlindedTransactionWithNewAsset failed");
     return "";
   }
@@ -418,27 +195,11 @@ function createProposalTx(previousTx, contractHash, assetAddress, changeAddress,
   return newTx;
 }
 
-function signProposalTx(unsignedTx, address, hdPath, encryptedWallet, userPassword) {
-  let xprv;
+function signIssueNftTx(unsignedTx, address, xprv, hdPath) {
   let signedTx_ptr;
   let signedTx;
   let signingKey_ptr;
   let signingKey;
-
-  console.log("path is " + hdPath);
-
-  path = parsePath(hdPath);
-  console.log("parsed path is " + path);
-
-  // get the xprv from the wallet 
-  if ((xprv = getXprv(encryptedWallet, userPassword)) === "") {
-    console.error("getXprv failed");
-    return "";
-  }
-
-  console.log("xprv is " + xprv);
-
-  console.log("path is " + path);
 
   // find the right key 
   if ((signingKey_ptr = ccall('getSigningKey', 'number', ['string', 'string', 'array', 'number'], [xprv, address, path, path.length])) === "") {
@@ -463,10 +224,43 @@ function signProposalTx(unsignedTx, address, hdPath, encryptedWallet, userPasswo
   return signedTx;
 }
 
-function decodeTx(Tx) {
-  if ((ccall('txIsValid', 'number', ['string'], [Tx])) != 0) {
-    return "Tx can't be decoded";
-  }
+function encryptHashWithPubkeys(message, pubkeys) {
+  let cipher_list = [];
 
-  return "OK";
+  for (var i = 0; i < pubkeys.length; i++) {
+    var xpub = pubkeys[i].xpub;
+    var hdPath = pubkeys[i].hdPath;
+    var range = pubkeys[i].range;
+    var encryptedProof_ptr;
+    var encryptedProof;
+    
+    // derive a pubkey in the provided path
+    if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'string', 'number'], [hdPath, hdPath.length, range])) === 0) {
+      console.error("getPubkeyFromXpub failed");
+      return cipher_list = [];
+    }
+    
+    if ((pubkey = convertToString(pubkey_ptr, "pubkey")) === "") {
+      return cipher_list = [];
+    }
+
+    // encrypt the proof with the pubkey
+    if ((encryptedProof_ptr = ccall('encryptProofWithPubkey', 'number', ['string', 'string'], [message, pubkey])) === 0) {
+      console.error("encryptProofWithPubkey failed");
+      return cipher_list = [];
+    }
+
+    if ((encryptedProof = convertToString(encryptedProof_ptr, "encryptedProof")) === "") {
+      return cipher_list = [];
+    }
+
+    var newItem = {
+      "encryptedProof": encryptedProof,
+      "xpub": xpub,
+      "hdPath": hdPath
+    }
+    cipher_list.push(newItem);
+  }  
+
+  return cipher_list;
 }
