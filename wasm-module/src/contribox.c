@@ -467,11 +467,25 @@ char *getConfidentialAddressFromAddress(const char *address, const char *blindin
     return confidentialAddress;
 }
 
+struct ext_key *getChildFromXprv(const struct ext_key *xprv, const uint32_t *hdPath, const size_t path_len) {
+    struct ext_key *child;
+    int ret;
+
+    printf("getChildFromXprv path is %u/%u\n", hdPath[0], hdPath[1]);
+    if ((ret = bip32_key_from_parent_path_alloc(xprv, hdPath, path_len, BIP32_FLAG_KEY_PRIVATE, &child)) != 0) {
+        printf("bip32_key_from_parent_path failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    return child;
+}
+
 struct ext_key *getChildFromXpub(const char *xpub, const uint32_t *hdPath, const size_t path_len) {
     struct ext_key *hdKey;
     struct ext_key *child;
     int ret;
 
+    printf("getChildFromXpub path is %u/%u\n", hdPath[0], hdPath[1]);
     if ((ret = bip32_key_from_base58_alloc(xpub, &hdKey)) != 0) {
         printf("bip32_key_from_base58 failed with %d error code\n", ret);
         return NULL;
@@ -545,12 +559,12 @@ char *createUnconfidentialTransactionWithNewAsset(struct txInfo *initialInput, c
     memcpy(newAsset, "\1", 1); // we add a '\1' byte before the asset tag
     memcpy(newAsset + 1, newAssetID, ASSET_TAG_LEN);
 
-    printBytesInHex(newAsset, sizeof(newAsset), "new asset");
+    // printBytesInHex(newAsset, sizeof(newAsset), "new asset");
 
     // copy the spent asset with a leading '\1'
     memcpy(changeAsset, initialInput->clearAsset, WALLY_TX_ASSET_CT_ASSET_LEN);
 
-    printBytesInHex(changeAsset, sizeof(changeAsset), "change asset");
+    // printBytesInHex(changeAsset, sizeof(changeAsset), "change asset");
 
     // create a new empty transaction and fill it
     wally_tx_init_alloc(2, 0, 0, 0, &newTx);
@@ -721,6 +735,94 @@ cleanup:
     wally_tx_free(prevTx);
 
     return newTx_hex;
+}
+
+EMSCRIPTEN_KEEPALIVE
+char    *getSigningKey(const char *xprv, const char *address, uint32_t *path, const size_t path_len) {
+    unsigned char   scriptPubkey[WALLY_SCRIPTPUBKEY_P2WPKH_LEN]; // we take the risk of a stack overflow here, but maybe it's okay since the function will fail immediately anyway 
+    unsigned char   keyHash[HASH160_LEN];
+    struct ext_key  *masterPrivkey = NULL;
+    struct ext_key  *childKey = NULL;
+    unsigned char   candidate[EC_PUBLIC_KEY_LEN];
+    unsigned char   candidateHash[HASH160_LEN];
+    unsigned char   signingKey[EC_PRIVATE_KEY_LEN] = { 0 };
+    char            *signingKey_hex = NULL;
+    int             found = 0;
+    size_t          limit = path[path_len - 1] + KEY_SEARCH_DEPTH;
+    int             ret = 1;
+    size_t          written;
+
+    printf("address is %s\n", address);
+    // get the hash of the pubkey we're looking for from the address
+    if (!(strncmp(address, CONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST, 2))) { // address is confidential
+        // TODO: extract the unconfidential address from confidential address instead of letting the user do the job
+        printf("Provided address is confidential, need an unconfidential address\n");
+        return NULL;
+    } else {
+        // get the script pubkey corresponding to the address
+        ret = wally_addr_segwit_to_bytes(address, UNCONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST, 0, scriptPubkey, sizeof(scriptPubkey), &written);
+        if (ret != 0) {
+            printf("wally_addr_segwit_to_bytes failed with %d error code\n", ret);
+            return NULL;
+        }
+
+        if (written != WALLY_SCRIPTPUBKEY_P2WPKH_LEN) {
+            printf("Provided address is not P2WPKH, scriptPubkey length is %zu\nShould be %d\n", written,WALLY_SCRIPTPUBKEY_P2WPKH_LEN);
+            return NULL;
+        }
+        // get the hash of the key from the scriptPubkey
+        memcpy(keyHash, scriptPubkey + 2, HASH160_LEN); // skip the segwit version + varint byte
+        printBytesInHex(keyHash, HASH160_LEN, "keyHash");
+    }
+
+    // get the xprv from base58 string
+    if ((ret = bip32_key_from_base58_alloc(xprv, &masterPrivkey)) != 0) {
+        printf("bip32_key_from_base58 failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    printf("path is %u/%u\n", path[0], path[1]);
+
+    for (size_t i = path[path_len - 1]; i < limit; i++) {
+        // update the last index in path
+        path[path_len - 1] = i;
+        printf("last path index is %u\n", path[path_len-1]);
+        // get the child key from xprv
+        childKey = getChildFromXprv(masterPrivkey, path, path_len);
+        if (!childKey) {
+            printf("getChildFromXprv failed\n");
+            return NULL;
+        }
+
+        // get the pubkey from the extended key
+        memcpy(candidate, childKey->pub_key, EC_PUBLIC_KEY_LEN);
+
+        // hash the candidate pubkey
+        wally_hash160(candidate, EC_PUBLIC_KEY_LEN, candidateHash, HASH160_LEN);
+        printBytesInHex(candidateHash, HASH160_LEN, "candidateHash");
+
+        // compare the pubkeys, if they're the same, then the privkey is the signing key we're returning
+        if (!memcmp(candidateHash, keyHash, HASH160_LEN)) {
+            memcpy(signingKey, childKey->priv_key, EC_PRIVATE_KEY_LEN);
+            found = 1;
+            break;
+        } else {
+            continue;
+        }
+    }
+
+    if (!found) {
+        printf("not found the given pubkey in %zu to %zu index\n", limit - KEY_SEARCH_DEPTH, limit);
+        return NULL;
+    }
+
+    // convert privkey in hex format
+    if ((ret = wally_hex_from_bytes(signingKey, EC_PRIVATE_KEY_LEN, &signingKey_hex)) != 0) {
+        printf("wally_hex_from_bytes failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    return signingKey_hex;
 }
 
 EMSCRIPTEN_KEEPALIVE

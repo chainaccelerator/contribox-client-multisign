@@ -3,6 +3,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <limits.h>
 
 #include "emscripten.h"
@@ -29,6 +30,8 @@
 #define ISSUANCE_TOKEN_AMT (unsigned long long)0
 
 #define INPUT_DEACTIVATE_SEQUENCE (uint32_t)0xffffffff
+
+#define KEY_SEARCH_DEPTH (size_t)20
 
 #define MEMORY_ERROR "memory allocation error\n"
 

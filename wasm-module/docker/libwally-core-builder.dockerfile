@@ -21,7 +21,9 @@ RUN git clone https://github.com/emscripten-core/emsdk.git /src/emsdk
 WORKDIR /src/emsdk
 RUN ./emsdk install latest && ./emsdk activate latest
 
-RUN git clone https://github.com/ElementsProject/libwally-core.git -b release_$LIBWALLY_CORE_VERSION /src/contribox/libwally
+ARG NOCACHE=41
+RUN git clone https://github.com/Sosthene00/libwally-core.git -b seed_bug /src/contribox/libwally
+# RUN git clone https://github.com/ElementsProject/libwally-core.git -b release_$LIBWALLY_CORE_VERSION /src/contribox/libwally
 WORKDIR /src/contribox/libwally
 RUN git submodule init && \
     git submodule sync --recursive && \
@@ -60,6 +62,7 @@ RUN ${SOURCE_EMSDK} && emcc \
     -D BUILD_ELEMENTS=1 \
     src/blinding.c \
     src/util.c \
+    src/transaction.c \
     src/contribox.c \
     -Llibwally/src/.libs -lwallycore \
     -Llibwally/src/secp256k1/.libs -lsecp256k1 \
