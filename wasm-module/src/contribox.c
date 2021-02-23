@@ -78,33 +78,6 @@ char *generateSeed(const char *mnemonic, const char *passphrase) {
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *generateMasterBlindingKey(const char *seed_hex) {
-    unsigned char bytes_out[HMAC_SHA512_LEN];
-    unsigned char seed[BIP39_SEED_LEN_512];
-    char *masterBlindingKey;
-    int ret;
-    size_t written;
-
-    if ((ret = wally_hex_to_bytes(seed_hex, seed, BIP39_SEED_LEN_512, &written)) != 0) {
-        printf("wally_hex_to_bytes failed with %d error code\n", ret);
-        return "";
-    }
-    if ((ret = wally_asset_blinding_key_from_seed(seed, BIP39_SEED_LEN_512, bytes_out, HMAC_SHA512_LEN)) != 0) {
-        printf("wally_asset_blinding_key_from_seed failed with %d error code\n", ret);
-        return "";
-    }
-
-    memset(seed, '\0', BIP39_SEED_LEN_512);
-
-    if ((ret = wally_hex_from_bytes(bytes_out, HMAC_SHA512_LEN, &masterBlindingKey)) != 0) {
-        printf("wally_hex_from_bytes failed with %d error code\n", ret);
-        return "";
-    }
-
-    return masterBlindingKey;
-}
-
-EMSCRIPTEN_KEEPALIVE
 char *hdKeyFromSeed(const char *seed_hex) {
     struct ext_key *hdKey;
     unsigned char seed[BIP39_SEED_LEN_512];
@@ -158,258 +131,56 @@ char *xpubFromXprv(const char *xprv) {
 }
 
 EMSCRIPTEN_KEEPALIVE
-char    *encryptFileWithPassword(const char *userPassword, const char *toEncrypt, char *encryptedFile) {
-    unsigned char *cipher;
-    unsigned char key[PBKDF2_HMAC_SHA256_LEN];
-    int cipher_len;
-    size_t written;
-    unsigned char initVector[AES_BLOCK_LEN];
-    int ret;
+char    *pubkeyFromPrivkey(const char *privkey_hex) {
+    unsigned char   *buffer = NULL;
+    unsigned char   privkey[EC_PRIVATE_KEY_LEN];
+    unsigned char   pubkey[EC_PUBLIC_KEY_LEN];
+    char            *pubkey_hex = NULL;
+    size_t          written;
+    int             ret = 1;
 
-    // generate key from password
-    if ((ret = wally_pbkdf2_hmac_sha256(
-                            (unsigned char*)userPassword, 
-                            strlen(userPassword), 
-                            NULL, 
-                            (size_t)0,
-                            0,
-                            16384,
-                            key, 
-                            PBKDF2_HMAC_SHA256_LEN)) != 0) {
-        printf("wally_pbkdf2_hmac_sha256 failed with %d\n", ret);
-        return "";
-    };
-
-    // get initialization vector of 16 bytes
-    getRandomBytes(initVector, AES_BLOCK_LEN);
-
-    // get the length of the cipher
-    cipher_len = strlen(toEncrypt) / 16 * 16 + 16;
-    if (!(cipher = calloc(cipher_len + AES_BLOCK_LEN, sizeof(*cipher)))) {
-        printf(MEMORY_ERROR);
-        return "";
-    };
-    memcpy(cipher, initVector, AES_BLOCK_LEN);
-
-    // encrypt message
-    if ((ret = wally_aes_cbc(
-                key, 
-                PBKDF2_HMAC_SHA256_LEN, 
-                initVector,
-                AES_BLOCK_LEN,
-                (unsigned char*)toEncrypt,
-                strlen(toEncrypt),
-                AES_FLAG_ENCRYPT,
-                cipher + AES_BLOCK_LEN,
-                cipher_len,
-                &written
-                )) != 0) {
-        printf("wally_aes_cbc failed with %d\n", ret);
-        free(cipher);
-        return "";
-    };
-    memset(&key, '\0', sizeof(key));
-
-    if ((ret = wally_base58_from_bytes(cipher, cipher_len + AES_BLOCK_LEN, BASE58_FLAG_CHECKSUM, &encryptedFile)) != 0) {
-        printf("wally_base58_from_bytes failed\n");
-        free(cipher);
-        return "";
-    };
-
-    free(cipher);
-
-    return encryptedFile;
-}
-
-EMSCRIPTEN_KEEPALIVE
-size_t getClearLenFromCipher(const char *encryptedFile) {
-    size_t written;
-    int ret;
-
-    // get the bytes length of the cipher 
-    if ((ret = wally_base58_get_length(encryptedFile, &written)) != 0) {
-        printf("wally_base58_get_length failed with %d\n", ret);
-        return -1;
-    };
-    if (written == strlen(encryptedFile)) {
-        printf("can't get the length of the decoded base58 string\n");
-        return -1;
-    }
-
-    written -= BASE58_CHECKSUM_LEN; 
-    written -= AES_BLOCK_LEN;
-    written /= 16;
-    written *= 16;
-
-    return written;
-}
-
-EMSCRIPTEN_KEEPALIVE
-char *decryptFileWithPassword(const char *encryptedFile, const char *userPassword) {
-    unsigned char key[PBKDF2_HMAC_SHA256_LEN];
-    unsigned char initVector[AES_BLOCK_LEN];
-
-    unsigned char *clear;
-    unsigned char *cipher;
-    size_t cipher_len;
-    size_t clear_len;
-
-    size_t written;
-    int ret;
-
-    // get the key from the password
-    if ((ret = wally_pbkdf2_hmac_sha256(
-                            (unsigned char*)userPassword, 
-                            strlen(userPassword), 
-                            NULL, 
-                            (size_t)0,
-                            0,
-                            16384,
-                            key, 
-                            PBKDF2_HMAC_SHA256_LEN)) != 0) {
-        printf("wally_pbkdf2_hmac_sha256 failed with %d\n", ret);
-        return 0;
-    };
-
-
-    // get the bytes length of the cipher 
-    if ((ret = wally_base58_get_length(encryptedFile, &written)) != 0) {
-        printf("wally_base58_get_length failed with %d\n", ret);
-        return "";
-    };
-    if (written == strlen(encryptedFile)) {
-        printf("can't get the length of the decoded base58 string\n");
-        return "";
-    }
-
-    // malloc the cipher in bytes
-    cipher_len = written;
-    if (!(cipher = calloc(cipher_len, sizeof(*cipher)))) {
-        printf(MEMORY_ERROR);
-        return "";
-    };
-
-    // base58 to bytes
-    if ((ret = wally_base58_to_bytes(encryptedFile, BASE58_FLAG_CHECKSUM, cipher, cipher_len, &written)) != 0) {
-        printf("wally_base58_to_bytes failed with %d\n", ret);
-        return "";
-    };
-
-    cipher_len -= BASE58_CHECKSUM_LEN;
-
-    // retrieve the iv from the first 16B
-    memcpy(initVector, cipher, AES_BLOCK_LEN);
-    cipher += AES_BLOCK_LEN;
-    cipher_len -= AES_BLOCK_LEN;
-
-    // get the clear message len
-    clear_len = (cipher_len) / 16 * 16;
-    if (!(clear = calloc(clear_len + 1, sizeof(*clear)))) {
-        printf(MEMORY_ERROR);
-        return "";
-    };
-
-    // decrypt the cipher
-    if ((ret = wally_aes_cbc(
-                key,
-                PBKDF2_HMAC_SHA256_LEN,
-                initVector,
-                AES_BLOCK_LEN,
-                cipher,
-                cipher_len,
-                AES_FLAG_DECRYPT,
-                clear,
-                clear_len,
-                &written
-                )) != 0) {
-        printf("wally_aes_cbc failed with %d\n", ret);
-        free(clear);
-        free(cipher - AES_BLOCK_LEN);
-        return "";
-    };
-    memset(key, '\0', sizeof(key));
-
-    free(cipher - AES_BLOCK_LEN);
-
-    return (char *)clear;
-}
-
-EMSCRIPTEN_KEEPALIVE
-char *getBlindingKeyFromScript(const char *script_hex, const char *masterBlindingKey) {
-    unsigned char private[EC_PRIVATE_KEY_LEN];
-    unsigned char *assetBlindingKey;
-    unsigned char *script;
-    unsigned char *program;
-    char *privateBlindingKey = NULL;
-    size_t script_len;
-    size_t key_len; // HMAC_SHA512_LEN
-    int ret;
-    size_t written;
-    int isP2WSH;
-
-    // convert script pubkey to bytes
-    if (!(script = convertHexToBytes(script_hex, &script_len))) {
+    // get the signing key in bytes form
+    if (!(buffer = convertHexToBytes(privkey_hex, &written))) {
         printf("convertHexToBytes failed\n");
-        return "";
+        return NULL;
     }
 
-    // convert master blinding key to bytes
-    if (!(assetBlindingKey = convertHexToBytes(masterBlindingKey, &key_len))) {
-        printf("convertHexToBytes failed\n");
-        return "";
+    memcpy(privkey, buffer, sizeof(privkey));
+
+    clearThenFree(buffer, written);
+
+    if ((ret = wally_ec_public_key_from_private_key(privkey, EC_PRIVATE_KEY_LEN, pubkey, EC_PUBLIC_KEY_LEN))) {
+        printf("wally_ec_public_key_from_private_key failed with %d error code\n", ret);
+        return NULL;
     }
 
-    // get the program from the script
-    if (!(program = getWitnessProgram(script, script_len, &isP2WSH))) {
-        printf("getWitnessProgram failed\n");
-        return "";
-    }
-
-    // compute the private blinding key
-    if ((ret = wally_asset_blinding_key_to_ec_private_key(assetBlindingKey, HMAC_SHA512_LEN, 
-                                                        program, isP2WSH ? WALLY_SCRIPTPUBKEY_P2WSH_LEN : WALLY_SCRIPTPUBKEY_P2WPKH_LEN, 
-                                                        private, EC_PRIVATE_KEY_LEN)) != 0) {
-        printf("wally_asset_blinding_key_to_ec_private_key failed with %d error code\n", ret);
-        free(script);
-        free(program);
-        free(assetBlindingKey);
-        return "";
-    }
-
-    // convert the private key to hex string
-    if ((ret = wally_hex_from_bytes(private, EC_PRIVATE_KEY_LEN, &privateBlindingKey)) != 0) {
+    if ((ret = wally_hex_from_bytes(pubkey, written, &pubkey_hex)) != 0) {
         printf("wally_hex_from_bytes failed with %d error code\n", ret);
-        return "";
+        return NULL;
     }
 
-    memset(private, '\0', EC_PRIVATE_KEY_LEN);
-
-    free(script);
-    free(assetBlindingKey);
-    
-    return privateBlindingKey;
+    return pubkey_hex;
 }
 
 EMSCRIPTEN_KEEPALIVE
 char *getAddressFromScript(const char *script_hex) {
-    unsigned char *script;
-    unsigned char *program;
+    unsigned char *script = NULL;
+    unsigned char *program = NULL;
     char *address = NULL;
     size_t script_len;
-    size_t written;
     int ret;
     int isP2WSH;
 
     // convert script pubkey to bytes
     if (!(script = convertHexToBytes(script_hex, &script_len))) {
         printf("convertHexToBytes failed\n");
-        return 0;
+        goto cleanup;
     }
 
     // get the program from the script
     if (!(program = getWitnessProgram(script, script_len, &isP2WSH))) {
         printf("getWitnessProgram failed\n");
-        return 0;
+        goto cleanup;
     }
 
     // create the unconfidential address from program
@@ -418,64 +189,30 @@ char *getAddressFromScript(const char *script_hex) {
                                             0, 
                                             &address)) != 0) {
         printf("wally_addr_segwit_from_bytes failed with %d error code\n", ret);
-        free(script);
-        free(program);
-        return 0;
     }
 
-    free(script);
-    free(program);
+cleanup:
+    clearThenFree(program, isP2WSH ? WALLY_SCRIPTPUBKEY_P2WSH_LEN : WALLY_SCRIPTPUBKEY_P2WPKH_LEN);
+    clearThenFree(script, script_len);
 
     return address;
 }
 
-EMSCRIPTEN_KEEPALIVE
-char *getConfidentialAddressFromAddress(const char *address, const char *blindingPrivkey_hex) {
-    unsigned char *blindingPrivkey;
-    unsigned char blindingPubkey[EC_PUBLIC_KEY_LEN];
-    char *confidentialAddress;
-    int ret;
-    size_t privkey_len;
-
-    // convert private key to bytes
-    if (!(blindingPrivkey = convertHexToBytes(blindingPrivkey_hex, &privkey_len))) {
-        printf("convertHexToBytes failed\n");
-        return "";
-    }
-
-    // compute the blinding pubkey from privkey
-    if ((ret = wally_ec_public_key_from_private_key(blindingPrivkey, EC_PRIVATE_KEY_LEN, blindingPubkey, EC_PUBLIC_KEY_LEN)) != 0) {
-        printf("wally_ec_public_key_from_private_key failed with %d error code\n", ret);
-        return "";
-    }
-
-    // create the confidential address from the unconfidential one
-    if ((ret = wally_confidential_addr_from_addr_segwit(
-            address, 
-            UNCONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST,
-            CONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST,
-            blindingPubkey, 
-            EC_PUBLIC_KEY_LEN, 
-            &confidentialAddress)) != 0) {
-        printf("wally_confidential_addr_to_addr failed with %d error code\n", ret);
-        return "";
-    }
-
-    memset(blindingPrivkey, '\0', EC_PRIVATE_KEY_LEN);
-    free(blindingPrivkey);
-
-    return confidentialAddress;
-}
-
-struct ext_key *getChildFromXprv(const struct ext_key *xprv, const uint32_t *hdPath, const size_t path_len) {
+struct ext_key *getChildFromXprv(const char *xprv, const uint32_t *hdPath, const size_t path_len) {
+    struct ext_key *hdKey;
     struct ext_key *child;
     int ret;
 
-    printf("getChildFromXprv path is %u/%u\n", hdPath[0], hdPath[1]);
-    if ((ret = bip32_key_from_parent_path_alloc(xprv, hdPath, path_len, BIP32_FLAG_KEY_PRIVATE, &child)) != 0) {
-        printf("bip32_key_from_parent_path failed with %d error code\n", ret);
+    if ((ret = bip32_key_from_base58_alloc(xprv, &hdKey)) != 0) {
+        printf("bip32_key_from_base58 failed with %d error code\n", ret);
         return NULL;
+    };
+
+    if ((ret = bip32_key_from_parent_path_alloc(hdKey, hdPath, path_len, BIP32_FLAG_KEY_PRIVATE, &child)) != 0) {
+        printf("bip32_key_from_parent_path failed with %d error code\n", ret);
     }
+
+    bip32_key_free(hdKey);
 
     return child;
 }
@@ -485,7 +222,6 @@ struct ext_key *getChildFromXpub(const char *xpub, const uint32_t *hdPath, const
     struct ext_key *child;
     int ret;
 
-    printf("getChildFromXpub path is %u/%u\n", hdPath[0], hdPath[1]);
     if ((ret = bip32_key_from_base58_alloc(xpub, &hdKey)) != 0) {
         printf("bip32_key_from_base58 failed with %d error code\n", ret);
         return NULL;
@@ -493,7 +229,6 @@ struct ext_key *getChildFromXpub(const char *xpub, const uint32_t *hdPath, const
 
     if ((ret = bip32_key_from_parent_path_alloc(hdKey, hdPath, path_len, BIP32_FLAG_KEY_PUBLIC, &child)) != 0) {
         printf("bip32_key_from_parent_path failed with %d error code\n", ret);
-        return NULL;
     }
 
     bip32_key_free(hdKey);
@@ -502,20 +237,69 @@ struct ext_key *getChildFromXpub(const char *xpub, const uint32_t *hdPath, const
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *getPubkeyFromXpub(const char *xpub, const uint32_t *hdPath, const size_t path_len) {
-    struct ext_key *child;
-    char *pubkey_hex;
+char *getPubkeyFromXpub(const char *xpub, const char *path, const size_t range) {
+    struct ext_key *child = NULL;
+    char *pubkey_hex = NULL;
     unsigned char pubkey[EC_PUBLIC_KEY_LEN];
+    uint32_t    *hdPath = NULL;
+    size_t      path_len;
     int ret;
+
+    if ((hdPath = parseHdPath(path, &path_len)) == NULL) {
+        printf("parseHdPath failed\n");
+        goto cleanup;
+    }
+
+    if (range > 0) {
+        hdPath[path_len - 1] = (uint32_t)(rand() % range);
+    } 
 
     if ((child = getChildFromXpub(xpub, hdPath, path_len)) == NULL) {
         printf("getChildFromXpub failed\n");
+        goto cleanup;
+    }
+
+    memcpy(pubkey, child->pub_key, EC_PUBLIC_KEY_LEN);
+
+    if ((ret = wally_hex_from_bytes(pubkey, EC_PUBLIC_KEY_LEN, &pubkey_hex)) != 0) {
+        printf("wally_hex_from_bytes failed with %d error code\n", ret);
+    }
+
+cleanup:
+    bip32_key_free(child);
+    if (hdPath)
+        free(hdPath);
+
+    return pubkey_hex;
+}
+
+EMSCRIPTEN_KEEPALIVE
+char *getPubkeyFromXprv(const char *xprv, const char *path, const size_t range) {
+    struct ext_key *child;
+    char *pubkey_hex;
+    unsigned char pubkey[EC_PUBLIC_KEY_LEN];
+    uint32_t    *hdPath;
+    size_t      path_len;
+    int ret;
+
+    if ((hdPath = parseHdPath(path, &path_len)) == NULL) {
+        printf("parseHdPath failed\n");
+        return "";
+    }
+
+    if (range > 0) {
+        hdPath[path_len - 1] = (uint32_t)(rand() % range);
+    } 
+
+    if ((child = getChildFromXprv(xprv, hdPath, path_len)) == NULL) {
+        printf("getChildFromXprv failed\n");
         return "";
     }
 
     memcpy(pubkey, child->pub_key, EC_PUBLIC_KEY_LEN);
 
     bip32_key_free(child);
+    free(hdPath);
 
     if ((ret = wally_hex_from_bytes(pubkey, EC_PUBLIC_KEY_LEN, &pubkey_hex)) != 0) {
         printf("wally_hex_from_bytes failed with %d error code\n", ret);
@@ -526,11 +310,22 @@ char *getPubkeyFromXpub(const char *xpub, const uint32_t *hdPath, const size_t p
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *getAddressFromXpub(const char *xpub, const uint32_t *hdPath, const size_t path_len) {
+char *getAddressFromXpub(const char *xpub, const char *path, const size_t range) {
     struct ext_key *child;
     char *address;
     unsigned char pubkey[EC_PUBLIC_KEY_LEN];
+    uint32_t    *hdPath;
+    size_t      path_len;
     int ret;
+
+    if ((hdPath = parseHdPath(path, &path_len)) == NULL) {
+        printf("parseHdPath failed\n");
+        return "";
+    }
+
+    if (range > 0) {
+        hdPath[path_len - 1] = (uint32_t)(rand() % range);
+    } 
 
     if ((child = getChildFromXpub(xpub, hdPath, path_len)) == NULL) {
         printf("getChildFromXpub failed\n");
@@ -543,6 +338,7 @@ char *getAddressFromXpub(const char *xpub, const uint32_t *hdPath, const size_t 
     }
 
     bip32_key_free(child);
+    free(hdPath);
 
     return address;
 }
@@ -559,36 +355,32 @@ char *createUnconfidentialTransactionWithNewAsset(struct txInfo *initialInput, c
     memcpy(newAsset, "\1", 1); // we add a '\1' byte before the asset tag
     memcpy(newAsset + 1, newAssetID, ASSET_TAG_LEN);
 
-    // printBytesInHex(newAsset, sizeof(newAsset), "new asset");
-
-    // copy the spent asset with a leading '\1'
+    // copy the spent asset
     memcpy(changeAsset, initialInput->clearAsset, WALLY_TX_ASSET_CT_ASSET_LEN);
-
-    // printBytesInHex(changeAsset, sizeof(changeAsset), "change asset");
 
     // create a new empty transaction and fill it
     wally_tx_init_alloc(2, 0, 0, 0, &newTx);
 
     // add the change output to the tx
-    if ((ret = addOutputToTx(newTx, changeAddress, 0, initialInput->satoshi, changeAsset)) != 0) {
+    if ((ret = addOutputToTx(newTx, changeAddress, IS_P2WPKH, initialInput->satoshi, changeAsset)) != 0) {
         printf("addOutputToTx failed for change output\n");
         goto cleanup;
     }
 
     // add the new asset output to the tx
-    if ((ret = addOutputToTx(newTx, assetAddress, 1, ISSUANCE_ASSET_AMT, newAsset)) != 0) {
+    if ((ret = addOutputToTx(newTx, assetAddress, IS_P2WPKH, ISSUANCE_ASSET_AMT, newAsset)) != 0) {
         printf("addOutputToTx failed for new asset output\n");
         goto cleanup;
     }
 
     // add the input including the unblinded issuance
     if ((ret = addInputToTx(newTx, initialInput->prevTxID, reversed_contractHash)) != 0) {
-        printf("addOutputToTx failed for input\n");
+        printf("addInputToTx failed for input\n");
         goto cleanup;
     }
 
     // get the tx in hex form
-    if ((ret = wally_tx_to_hex(newTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &newTx_hex)) != 0) {
+    if ((ret = wally_tx_to_hex(newTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS | WALLY_TX_FLAG_ALLOW_PARTIAL, &newTx_hex)) != 0) {
         printf("wally_tx_to_hex failed with %d error code\n", ret);
     }
 
@@ -599,47 +391,8 @@ cleanup:
 }
 
 
-char *createConfidentialTransactionWithNewAsset(struct txInfo *initialInput, const unsigned char *newAssetID, const unsigned char *reversed_contractHash, const char *assetAddress, const char *changeAddress) {
-    struct wally_tx *newTx = NULL;
-    char *newTx_hex = NULL;
-    int ret;
-    size_t written;
-
-    // initialize all the txInfo we'll need
-    if (populateTxInfoForProposalTx(initialInput, newAssetID, assetAddress, changeAddress) != 0) {
-        printf("Failed to populate blinding infos\n");
-        goto cleanup;
-    }
-
-    // create a new empty transaction and fill it
-    wally_tx_init_alloc(2, 0, 0, 0, &newTx);
-
-    // create and add the outputs
-    if ((ret = addBlindedOutputs(newTx, initialInput)) != 0) {
-        printf("addBlindedOutputs failed\n");
-        goto cleanup;
-    }
-    
-    // add asset issuance
-    if ((ret = addIssuanceInput(newTx, initialInput, reversed_contractHash)) != 0) {
-        printf("addIssuanceInput failed\n");
-        goto cleanup;
-    }
-
-    // get the tx in hex form
-    if ((ret = wally_tx_to_hex(newTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &newTx_hex)) != 0) {
-        printf("wally_tx_to_hex failed with %d error code\n", ret);
-        goto cleanup;
-    }
-cleanup:
-    wally_tx_free(newTx);
-
-    return newTx_hex;
-} 
-
 EMSCRIPTEN_KEEPALIVE
-char *createTransactionWithNewAsset(const char *prevTx_hex, const char *contractHash_hex, const char *masterBlindingKey_hex, const char *assetAddress, const char *changeAddress, const size_t blind) {
-    unsigned char *masterBlindingKey;
+char *createTransactionWithNewAsset(const char *prevTx_hex, const char *contractHash_hex, const char *assetAddress, const char *changeAddress) {
     size_t key_len;
     struct wally_tx *prevTx;
     struct txInfo *spentUTXOInput = NULL;
@@ -651,12 +404,7 @@ char *createTransactionWithNewAsset(const char *prevTx_hex, const char *contract
     int ret = 1;
     size_t written;
 
-    // BEGINNING OF THE CONFIDENTIAL/UNCONFIDENTIAL COMMON PART
-    // convert hex master blinding key to bytes
-    if (!(masterBlindingKey = convertHexToBytes(masterBlindingKey_hex, &key_len))) {
-        printf("convertHexToBytes failed\n");
-        goto cleanup;
-    }
+    printf("assetAddress is %s\n", assetAddress);
 
     // convert hex prevTx to struct
     if ((ret = wally_tx_from_hex(prevTx_hex, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &prevTx)) != 0) {
@@ -664,34 +412,18 @@ char *createTransactionWithNewAsset(const char *prevTx_hex, const char *contract
         goto cleanup;
     }
 
-    if (blind) {
-        spentUTXOInput = unblindTxOutput(&(prevTx->outputs[0]), masterBlindingKey); // we assume for now that the UTXO we can spend is always at index 0
-    
-        if (!spentUTXOInput) {
-            printf("Found no output that can be unblinded in previous transaction at index 0. Aborting.\n");
-            goto cleanup;
-        }
-
-        // copy the master blinding key to our new struct, for convenience
-        memcpy(spentUTXOInput->masterBlindingKey, masterBlindingKey, SHA512_LEN);
-
-        if (generateAssetGenerator(spentUTXOInput)) { // we need to compute the asset generator for later use
-            printf("generateAssetGenerator failed\n");
-            goto cleanup;
-        }
-    } else {
-        if (!(spentUTXOInput = initTxInfo())) {
-            printf("Failed to initialize txInfo struct\n");
-            goto cleanup; 
+    if (!(spentUTXOInput = initTxInfo())) {
+        printf("Failed to initialize txInfo struct\n");
+        goto cleanup; 
     }
 
-        memcpy(spentUTXOInput->clearValue, prevTx->outputs[0].value, prevTx->outputs[0].value_len); // len must be 9 for unblinded value
-        if ((ret = wally_tx_confidential_value_to_satoshi(spentUTXOInput->clearValue, WALLY_TX_ASSET_CT_VALUE_UNBLIND_LEN, &(spentUTXOInput->satoshi))) != 0) {
-            printf("wally_tx_confidential_value_to_satoshi failed with %d error\n", ret);
-            goto cleanup;
-        }
-        memcpy(spentUTXOInput->clearAsset, prevTx->outputs[0].asset, prevTx->outputs[0].asset_len);
+    memcpy(spentUTXOInput->clearValue, prevTx->outputs[0].value, prevTx->outputs[0].value_len); // len must be 9 for unblinded value
+    if ((ret = wally_tx_confidential_value_to_satoshi(spentUTXOInput->clearValue, WALLY_TX_ASSET_CT_VALUE_UNBLIND_LEN, &(spentUTXOInput->satoshi))) != 0) {
+        printf("wally_tx_confidential_value_to_satoshi failed with %d error\n", ret);
+        goto cleanup;
     }
+    memcpy(spentUTXOInput->clearAsset, prevTx->outputs[0].asset, prevTx->outputs[0].asset_len);
+
     spentUTXOInput->isInput = 1; // Since this will be our transaction's input, set isInput to 1
 
     // get previous txid
@@ -700,8 +432,6 @@ char *createTransactionWithNewAsset(const char *prevTx_hex, const char *contract
         goto cleanup;
     }
 
-    printBytesInHex(spentUTXOInput->prevTxID, WALLY_TXHASH_LEN, "prev txhash");
-    
     // the contract hash must be 32 bytes, so 64 char in hex string 
     if (strlen(contractHash_hex) != (SHA256_LEN * 2)) {
         printf("Provided contract hash is not 32B long\n");
@@ -720,39 +450,30 @@ char *createTransactionWithNewAsset(const char *prevTx_hex, const char *contract
         goto cleanup;
     }
 
-    // END OF THE CONFIDENTIAL/UNCONFIDENTIAL COMMON PART
-
-    if (blind) {
-        newTx_hex = createConfidentialTransactionWithNewAsset(spentUTXOInput, newAssetID, reversed_contractHash, assetAddress, changeAddress);
-    } else {
-        newTx_hex = createUnconfidentialTransactionWithNewAsset(spentUTXOInput, newAssetID, reversed_contractHash, assetAddress, changeAddress);
-    }
+    newTx_hex = createUnconfidentialTransactionWithNewAsset(spentUTXOInput, newAssetID, reversed_contractHash, assetAddress, changeAddress);
 
 cleanup:
     freeTxInfo(&spentUTXOInput);
     clearThenFree(reversed_contractHash, contractHash_len);
-    clearThenFree(masterBlindingKey, key_len);
     wally_tx_free(prevTx);
 
     return newTx_hex;
 }
 
 EMSCRIPTEN_KEEPALIVE
-char    *getSigningKey(const char *xprv, const char *address, uint32_t *path, const size_t path_len) {
+char    *getSigningKey(const char *xprv, const char *address, const char *path, const size_t range) {
     unsigned char   scriptPubkey[WALLY_SCRIPTPUBKEY_P2WPKH_LEN]; // we take the risk of a stack overflow here, but maybe it's okay since the function will fail immediately anyway 
     unsigned char   keyHash[HASH160_LEN];
-    struct ext_key  *masterPrivkey = NULL;
+    uint32_t        *hdPath;
+    size_t          path_len;
     struct ext_key  *childKey = NULL;
-    unsigned char   candidate[EC_PUBLIC_KEY_LEN];
     unsigned char   candidateHash[HASH160_LEN];
-    unsigned char   signingKey[EC_PRIVATE_KEY_LEN] = { 0 };
+    char            *wif;
     char            *signingKey_hex = NULL;
-    int             found = 0;
-    size_t          limit = path[path_len - 1] + KEY_SEARCH_DEPTH;
+    size_t          limit = 0;
     int             ret = 1;
     size_t          written;
 
-    printf("address is %s\n", address);
     // get the hash of the pubkey we're looking for from the address
     if (!(strncmp(address, CONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST, 2))) { // address is confidential
         // TODO: extract the unconfidential address from confidential address instead of letting the user do the job
@@ -770,59 +491,192 @@ char    *getSigningKey(const char *xprv, const char *address, uint32_t *path, co
             printf("Provided address is not P2WPKH, scriptPubkey length is %zu\nShould be %d\n", written,WALLY_SCRIPTPUBKEY_P2WPKH_LEN);
             return NULL;
         }
+
         // get the hash of the key from the scriptPubkey
         memcpy(keyHash, scriptPubkey + 2, HASH160_LEN); // skip the segwit version + varint byte
         printBytesInHex(keyHash, HASH160_LEN, "keyHash");
     }
 
-    // get the xprv from base58 string
-    if ((ret = bip32_key_from_base58_alloc(xprv, &masterPrivkey)) != 0) {
-        printf("bip32_key_from_base58 failed with %d error code\n", ret);
+    if ((hdPath = parseHdPath(path, &path_len)) == NULL) {
+        printf("parseHdPath failed\n");
         return NULL;
     }
 
-    printf("path is %u/%u\n", path[0], path[1]);
+    limit = hdPath[path_len - 1] + range;
 
-    for (size_t i = path[path_len - 1]; i < limit; i++) {
+    for (size_t i = hdPath[path_len - 1]; i < limit; i++) {
+        // free childKey, if necessary
+        if (childKey)
+            bip32_key_free(childKey);
+
         // update the last index in path
-        path[path_len - 1] = i;
-        printf("last path index is %u\n", path[path_len-1]);
+        hdPath[path_len - 1] = i;
+
         // get the child key from xprv
-        childKey = getChildFromXprv(masterPrivkey, path, path_len);
+        childKey = getChildFromXprv(xprv, hdPath, path_len);
         if (!childKey) {
             printf("getChildFromXprv failed\n");
             return NULL;
         }
 
-        // get the pubkey from the extended key
-        memcpy(candidate, childKey->pub_key, EC_PUBLIC_KEY_LEN);
-
         // hash the candidate pubkey
-        wally_hash160(candidate, EC_PUBLIC_KEY_LEN, candidateHash, HASH160_LEN);
-        printBytesInHex(candidateHash, HASH160_LEN, "candidateHash");
+        wally_hash160(childKey->pub_key, EC_PUBLIC_KEY_LEN, candidateHash, HASH160_LEN);
 
         // compare the pubkeys, if they're the same, then the privkey is the signing key we're returning
         if (!memcmp(candidateHash, keyHash, HASH160_LEN)) {
-            memcpy(signingKey, childKey->priv_key, EC_PRIVATE_KEY_LEN);
-            found = 1;
+            if ((ret = wally_hex_from_bytes(childKey->priv_key + 1, EC_PRIVATE_KEY_LEN, &signingKey_hex)) != 0) {
+                printf("wally_hex_from_bytes failed with %d error code\n", ret);
+            }
             break;
         } else {
             continue;
         }
     }
 
-    if (!found) {
-        printf("not found the given pubkey in %zu to %zu index\n", limit - KEY_SEARCH_DEPTH, limit);
+    bip32_key_free(childKey);
+
+    return signingKey_hex;
+}
+
+EMSCRIPTEN_KEEPALIVE
+char    *signHashWithKey(const char *signingKey_hex, const char *hash_hex) {
+    unsigned char   *temp = NULL;
+    unsigned char   signingKey[EC_PRIVATE_KEY_LEN];
+    unsigned char   toSign[EC_MESSAGE_HASH_LEN];
+    unsigned char   derSig[EC_SIGNATURE_DER_MAX_LEN];
+    char            *derSig_hex = NULL;
+    size_t          written;
+    int             ret = 1;
+
+    // get the bytes from the hex
+    if (!(temp = convertHexToBytes(hash_hex, &written))) {
+        printf("convertHexToBytes failed\n");
         return NULL;
     }
 
-    // convert privkey in hex format
-    if ((ret = wally_hex_from_bytes(signingKey, EC_PRIVATE_KEY_LEN, &signingKey_hex)) != 0) {
+    // check that the byte array we got is of the right length
+    if (written != EC_MESSAGE_HASH_LEN) {
+        printf("provided hash hex must be %d, not %zu\n", EC_MESSAGE_HASH_LEN * 2, written * 2);
+        clearThenFree(temp, written);
+        return NULL;
+    }
+
+    memcpy(toSign, temp, written);
+    clearThenFree(temp, written);
+
+    // get the bytes of signing key
+    if (!(temp = convertHexToBytes(signingKey_hex, &written))) {
+        printf("convertHexToBytes failed\n");
+        return NULL;
+    }
+    memcpy(signingKey, temp, written);
+    clearThenFree(temp, written);
+
+    // sign the hash with the provided key
+    if (signHashECDSA(signingKey, toSign, derSig, &written)) {
+        printf("signHashECDSA failed\n");
+        return NULL;
+    }
+
+    // convert the der signature to hex string 
+    if ((ret = wally_hex_from_bytes(derSig, written, &derSig_hex)) != 0) {
         printf("wally_hex_from_bytes failed with %d error code\n", ret);
         return NULL;
     }
 
-    return signingKey_hex;
+    return derSig_hex;
+}
+
+EMSCRIPTEN_KEEPALIVE
+char    *signProposalTx(const char *unsignedTx, const char *signingKey_hex) {
+    unsigned char                   *buffer = NULL;
+    char                            *signedTx = NULL; 
+    struct wally_tx                 *tempTx = NULL; 
+    unsigned char                   signingKey[EC_PRIVATE_KEY_LEN];
+    unsigned char                   pubkey[EC_PUBLIC_KEY_LEN];
+    unsigned char                   scriptCode[WALLY_SCRIPTPUBKEY_P2PKH_LEN];
+    unsigned char                   sighash[SHA256_LEN];
+    unsigned char                   derSig[EC_SIGNATURE_DER_MAX_LOW_R_LEN + 1]; // we need one byte for SIGHASH
+    char                            *derSig_hex = NULL;
+    struct wally_tx_witness_stack   *witnessStack = NULL;
+    size_t                          written = 0;
+    int                             ret = 1;
+
+    // convert hex tx to struct
+    if ((ret = wally_tx_from_hex(unsignedTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &tempTx)) != 0) {
+        printf("wally_tx_from_hex failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    // get the signing key in bytes form
+    if (!(buffer = convertHexToBytes(signingKey_hex, &written))) {
+        printf("convertHexToBytes failed\n");
+        return NULL;
+    }
+
+    memcpy(signingKey, buffer, sizeof(signingKey));
+
+    clearThenFree(buffer, written);
+
+    // we need the scriptCode, which is basically the script that will be executed, to compute the scriptHash that will be signed
+    // first the pubkey
+    if ((ret = wally_ec_public_key_from_private_key(signingKey, EC_PRIVATE_KEY_LEN, pubkey, EC_PUBLIC_KEY_LEN)) != 0) {
+        printf("wally_ec_public_key_from_private_key failed with %d error code\n", ret);
+        goto cleanup;
+    }
+
+    // construct the Script, here a standard P2PKH
+    if ((ret = wally_scriptpubkey_p2pkh_from_bytes(pubkey, EC_PUBLIC_KEY_LEN, WALLY_SCRIPT_HASH160, scriptCode, WALLY_SCRIPTPUBKEY_P2PKH_LEN, &written)) != 0) {
+        printf("wally_scriptpubkey_p2pkh_from_bytes failed with %d error code\n", ret);
+        goto cleanup;
+    }
+
+    // now we can produce the sighash
+    if ((ret = wally_tx_get_elements_signature_hash(tempTx, 
+                                                    0, // index that we are signing. Will always be 0 for now
+                                                    scriptCode, sizeof(scriptCode),
+                                                    tempTx->outputs[0].value, tempTx->outputs[0].value_len, // we know that output 0 is the sender paying himself back, so we can get the amount spent from here (will be 1 most of the time)
+                                                    WALLY_SIGHASH_ALL,
+                                                    WALLY_TX_FLAG_USE_WITNESS,
+                                                    sighash, SHA256_LEN)) != 0) {
+        printf("wally_tx_get_elements_signature_hash failed with %d error code\n", ret);
+        goto cleanup;
+    }
+
+    // and finally create the signature
+    if ((signHashECDSA(signingKey, sighash, derSig, &written))) {
+        printf("signHashWithKey failed\n");
+        goto cleanup;
+    }
+
+    derSig[written] = WALLY_SIGHASH_ALL; // we add the sighash byte after the der signature
+
+    // now we add the pubkey and signature to witness stack
+    if ((ret = wally_tx_witness_stack_init_alloc(0, &witnessStack)) != 0) {
+        printf(MEMORY_ERROR);
+        goto cleanup;
+    }
+
+    if ((ret = wally_tx_witness_stack_add(witnessStack, derSig, written + 1)) ||
+        (ret = wally_tx_witness_stack_add(witnessStack, pubkey, EC_PUBLIC_KEY_LEN))) {
+        printf("wally_tx_witness_stack_add failed with %d error code\n", ret);
+        goto cleanup;
+    }
+
+    if ((ret = wally_tx_set_input_witness(tempTx, 0, witnessStack))) {
+        printf("wally_tx_set_input_witness failed with %d error code\n", ret);
+        goto cleanup;
+    }
+
+    // at last we can return the hex serialized transaction
+    if ((ret = wally_tx_to_hex(tempTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &signedTx)) != 0) {
+        printf("wally_tx_to_hex failed with %d error code\n", ret);
+    }
+
+cleanup:
+    wally_tx_witness_stack_free(witnessStack);
+
+    return signedTx;
 }
 
 EMSCRIPTEN_KEEPALIVE

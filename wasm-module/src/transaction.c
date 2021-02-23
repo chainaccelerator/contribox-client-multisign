@@ -31,8 +31,6 @@ int addOutputToTx(struct wally_tx *tx, const char *address, const size_t isP2WSH
         goto cleanup;
     }
 
-    printBytesInHex(value, WALLY_TX_ASSET_CT_VALUE_UNBLIND_LEN, "value");
-
     // add the change output
     ret = wally_tx_add_elements_raw_output(tx, 
                                             scriptPubkey, scriptPubkey_len, 

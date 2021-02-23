@@ -18,8 +18,6 @@ void    freeTxInfo(struct txInfo **initialInput) {
 
     to_clear = *initialInput;
     while (to_clear) {
-        clearThenFree(to_clear->assetBlindingFactor, BLINDING_FACTOR_LEN);
-        clearThenFree(to_clear->valueBlindingFactor, BLINDING_FACTOR_LEN);
         clearThenFree(to_clear->scriptPubkey, to_clear->scriptPubkey_len);
         clearThenFree(to_clear->address, strlen(to_clear->address));
 
@@ -39,22 +37,6 @@ struct txInfo *initTxInfo() {
         printf(MEMORY_ERROR);
         return NULL;
     }
-
-    // if ((!(res->clearAsset = calloc(ASSET_TAG_LEN, sizeof(unsigned char)))) || 
-    //     ((!(res->assetBlindingFactor = calloc(BLINDING_FACTOR_LEN, sizeof(unsigned char)))) ||
-    //     ((!(res->valueBlindingFactor = calloc(BLINDING_FACTOR_LEN, sizeof(unsigned char))))))) {
-    //         printf(MEMORY_ERROR);
-    //         freeTxInfo(&res);
-    //         return NULL;
-    //     }
-    if ((!(res->assetBlindingFactor = calloc(BLINDING_FACTOR_LEN, sizeof(unsigned char)))) ||
-        ((!(res->valueBlindingFactor = calloc(BLINDING_FACTOR_LEN, sizeof(unsigned char)))))) {
-            printf(MEMORY_ERROR);
-            freeTxInfo(&res);
-            return NULL;
-        }
-
-    // other members have been set to 0 by the calloc function, and will be initialized if necessary
 
     return res;
 }
@@ -164,8 +146,8 @@ uint32_t    *parseHdPath(const char *stringPath, size_t *path_len) {
     char        *saveptr;
     int         hardened = 0;
     size_t      counter = 0;
+    char        *index = NULL;
     char        *last = NULL;
-
 
     if (!stringPath) {
         printf("no string to parse\n");
@@ -175,11 +157,11 @@ uint32_t    *parseHdPath(const char *stringPath, size_t *path_len) {
     // strtok will alter the original string, to prevent this we do a copy
     path_copy = strndup(stringPath, strlen(stringPath));
 
-    saveptr = path_copy
+    saveptr = path_copy;
 
     // get the number of separator in order to allocate the uint array
     *path_len = 1; // we start at 1 since we're supposed to have at least 1 element
-    while (path_copy) {
+    while (*path_copy) {
         if (*path_copy == '/') {
             (*path_len)++;
         }
@@ -202,9 +184,9 @@ uint32_t    *parseHdPath(const char *stringPath, size_t *path_len) {
             printf("each index can't be more than 2^31\n");
             goto cleanup;
         }
-        if (last && (strlen(last) == 1 && (last == 'h' || last == '\''))) {
+        if (*last && (strlen(last) == 1 && (*last == 'h' || *last == '\''))) {
             hardened = 1;
-        } else if (last) {
+        } else if (*last) {
             printf("each index must end with a digit or \"h\" or \"'\"\n");
             goto cleanup;
         }

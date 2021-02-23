@@ -1,5 +1,4 @@
 const PASSPHRASE = "";
-const HARDENED_INDEX = Math.pow(2, 31);
 
 function hexStringToByte(str) {
   if (!str) {
@@ -124,7 +123,7 @@ function generateWallet(mnemonic) {
 }
 
 function newWallet() {
-  console.error("Creating new wallet");
+  console.log("Creating new wallet");
 
   // First generate some entropy to generate the seed
   // FIXME: maybe it could be safer to move entropy generation on the wasm module side
@@ -151,16 +150,7 @@ function restoreWallet(mnemonic) {
   return generateWallet(mnemonic);
 }
 
-function newAddressFromXpub(xpub, hdPath) {
-  if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'array'], [xpub, hdPath])) === 0) {
-    console.error("getPubkeyFromXpub failed");
-    return "";
-  }
-
-  if ((pubkey = convertToString(pubkey_ptr, "pubkey")) === "") {
-    return "";
-  }
-
+function getAddressFromPubkey(pubkey) {
   // get the unconfidential address
   if ((address_ptr = ccall('getAddressFromScript', 'number', ['string'], [pubkey])) === 0) {
     console.error("getAddressFromScript failed");
@@ -172,19 +162,45 @@ function newAddressFromXpub(xpub, hdPath) {
   }
 
   let addressInfo = {
-    unconfidentialAddress: address,
-    pubkey: pubkey
+    "unconfidentialAddress": address,
+    "pubkey": pubkey
   }
 
   return JSON.stringify(addressInfo);
 }
 
-function createIssueNftTx(previousTx, contractHash, assetAddress, changeAddress) {
+function newAddressFromXpub(xpub, hdPath, range) {
+  if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'string', 'number'], [xpub, hdPath, range])) === 0) {
+    console.error("getPubkeyFromXpub failed");
+    return "";
+  }
+
+  if ((pubkey = convertToString(pubkey_ptr, "pubkey")) === "") {
+    return "";
+  }
+
+  return getAddressFromPubkey(pubkey);
+}
+
+function newAddressFromXprv(xprv, hdPath, range) {
+  if ((pubkey_ptr = ccall('getPubkeyFromXprv', 'number', ['string', 'string', 'number'], [xprv, hdPath, range])) === 0) {
+    console.error("getPubkeyFromXpub failed");
+    return "";
+  }
+
+  if ((pubkey = convertToString(pubkey_ptr, "pubkey")) === "") {
+    return "";
+  }
+
+  return getAddressFromPubkey(pubkey);
+}
+
+function createIssueAssetTx(previousTx, contractHash, assetAddress, changeAddress) {
   let newTx; 
 
   // call createTransactionWithNewAsset
-  if ((newTx_ptr = ccall('createTransactionWithNewAsset', 'number', ['string', 'string', 'string', 'string', 'string', 'number'], [previousTx, contractHash, assetAddress, changeAddress])) === 0) {
-    console.error("createBlindedTransactionWithNewAsset failed");
+  if ((newTx_ptr = ccall('createTransactionWithNewAsset', 'number', ['string', 'string', 'string', 'string'], [previousTx, contractHash, assetAddress, changeAddress])) === 0) {
+    console.error("createTransactionWithNewAsset failed");
     return "";
   }
 
@@ -195,14 +211,14 @@ function createIssueNftTx(previousTx, contractHash, assetAddress, changeAddress)
   return newTx;
 }
 
-function signIssueNftTx(unsignedTx, address, xprv, hdPath) {
+function signIssueAssetTx(unsignedTx, address, wallet) {
   let signedTx_ptr;
   let signedTx;
   let signingKey_ptr;
   let signingKey;
 
   // find the right key 
-  if ((signingKey_ptr = ccall('getSigningKey', 'number', ['string', 'string', 'array', 'number'], [xprv, address, path, path.length])) === "") {
+  if ((signingKey_ptr = ccall('getSigningKey', 'number', ['string', 'string', 'string', 'number'], [wallet.xprv, address, wallet.hdPath, wallet.range])) === 0) {
     console.error("getSigningKey failed");
     return "";
   }
@@ -212,7 +228,7 @@ function signIssueNftTx(unsignedTx, address, xprv, hdPath) {
   }
 
   // sign the tx
-  if ((signedTx_ptr = ccall('signProposalTx', 'number', ['string', 'string'], [unsignedTx, signingKey])) === "") {
+  if ((signedTx_ptr = ccall('signProposalTx', 'number', ['string', 'string'], [unsignedTx, signingKey])) === 0) {
     console.error("signProposalTx failed");
     return "";
   }
@@ -222,6 +238,34 @@ function signIssueNftTx(unsignedTx, address, xprv, hdPath) {
   }
 
   return signedTx;
+}
+
+function signHash(signingKey, hash) {
+  if ((derSignature_ptr = ccall('signHashWithKey', 'number', ['string', 'string'], [signingKey, hash])) === 0) {
+    console.error("signHashWithKey failed");
+    return "";
+  }
+
+  if ((derSignature = convertToString(derSignature_ptr, "derSignature")) === "") {
+    return "";
+  }
+
+  // now get the pubkey and add it to the returned object
+  if ((pubkey_ptr = ccall('pubkeyFromPrivkey', 'number', ['string'], [signingKey])) === 0) {
+    console.error("pubkeyFromPrivkey failed");
+    return "";
+  }
+
+  if ((pubkey = convertToString(pubkey_ptr, "pubkey")) === "") {
+    return "";
+  }
+
+  let Signature = {
+    "derSignature": derSignature,
+    "pubkey": pubkey
+  }
+
+  return JSON.stringify(Signature);
 }
 
 function encryptHashWithPubkeys(message, pubkeys) {
