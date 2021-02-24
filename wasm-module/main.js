@@ -275,11 +275,9 @@ function encryptHashWithPubkeys(message, pubkeys) {
     var xpub = pubkeys[i].xpub;
     var hdPath = pubkeys[i].hdPath;
     var range = pubkeys[i].range;
-    var encryptedProof_ptr;
-    var encryptedProof;
     
-    // derive a pubkey in the provided path
-    if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'string', 'number'], [hdPath, hdPath.length, range])) === 0) {
+    // derive a pubkey in the provided path and range
+    if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'string', 'number'], [xpub, hdPath, range])) === 0) {
       console.error("getPubkeyFromXpub failed");
       return cipher_list = [];
     }
@@ -288,8 +286,12 @@ function encryptHashWithPubkeys(message, pubkeys) {
       return cipher_list = [];
     }
 
+    // generate a new ephemeral private key 
+    let ephemeralPrivkey = new Uint8Array(32); // BIP39_ENTROPY_LEN_256
+    window.crypto.getRandomValues(ephemeralPrivkey);
+
     // encrypt the proof with the pubkey
-    if ((encryptedProof_ptr = ccall('encryptProofWithPubkey', 'number', ['string', 'string'], [message, pubkey])) === 0) {
+    if ((encryptedProof_ptr = ccall('encryptStringWithPubkey', 'number', ['string', 'string', 'array'], [pubkey, message, ephemeralPrivkey])) === 0) {
       console.error("encryptProofWithPubkey failed");
       return cipher_list = [];
     }
@@ -301,10 +303,9 @@ function encryptHashWithPubkeys(message, pubkeys) {
     var newItem = {
       "encryptedProof": encryptedProof,
       "xpub": xpub,
-      "hdPath": hdPath
     }
     cipher_list.push(newItem);
   }  
 
-  return cipher_list;
+  return JSON.stringify(cipher_list);
 }

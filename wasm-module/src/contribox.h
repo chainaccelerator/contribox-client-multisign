@@ -98,4 +98,7 @@ int addInputToTx(struct wally_tx *tx, const unsigned char *prevTxID, const unsig
 /** sign a message which must be a sha256 hash (32B long) with provided key **/
 int signHashECDSA(const unsigned char *signingKey, const unsigned char *toSign, unsigned char *derSig, size_t *written);
 
+// crypto.c
+unsigned char   *encryptWithAes(const char *toEncrypt, const unsigned char *key, size_t *cipher_len);
+
 #endif /*CONTRIBOX_H*/

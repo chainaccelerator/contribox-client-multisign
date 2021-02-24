@@ -131,6 +131,106 @@ char *xpubFromXprv(const char *xprv) {
 }
 
 EMSCRIPTEN_KEEPALIVE
+char *encryptStringWithPubkey(const char *pubkey_hex, const char *toEncrypt, unsigned char *ephemeralPrivkey) {
+    unsigned char   *buffer = NULL;
+    unsigned char   ephemeralPubkey[EC_PUBLIC_KEY_LEN];
+    unsigned char   pubkey[EC_PUBLIC_KEY_LEN];
+    unsigned char   key[SHA256_LEN];
+    char            *encryptedFile = NULL;
+    size_t          written;
+    int             ret;
+
+    // verify that provided entropy is a valid private key
+    if ((ret = wally_ec_private_key_verify(ephemeralPrivkey, EC_PRIVATE_KEY_LEN))) {
+        printf("wally_ec_private_key_verify failed with %d error code\n", ret);
+        printf("Provided entropy can't be used as a private key, try again with another entropy\n");
+        return NULL;
+    }
+
+    // get the public key
+    if ((ret = wally_ec_public_key_from_private_key(ephemeralPrivkey, EC_PRIVATE_KEY_LEN, ephemeralPubkey, EC_PUBLIC_KEY_LEN))) {
+        printf("wally_ec_public_key_from_private_key failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    // convert the pubkey in bytes form
+    if (!(buffer = convertHexToBytes(pubkey_hex, &written))) {
+        printf("convertHexToBytes failed\n");
+        return NULL;
+    }
+
+    memcpy(pubkey, buffer, written);
+
+    clearThenFree(buffer, written);
+
+    if (written != EC_PUBLIC_KEY_LEN) {
+        printf("Provided hex is not a valid public key, it's %zu long\n", written);
+        return NULL;
+    }
+
+    // get the shared secret with ECDH
+    if ((ret = wally_ecdh(pubkey, EC_PUBLIC_KEY_LEN, ephemeralPrivkey, EC_PRIVATE_KEY_LEN, key, sizeof(key)))) {
+        printf("wally_ecdh failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    if ((buffer = encryptWithAes(toEncrypt, key, &written)) == NULL) {
+        printf("encryptWithAes failed\n");
+        return NULL;
+    }
+
+    // erase all private material from memory
+    memset(key, '\0', sizeof(key));
+    memset(ephemeralPrivkey, '\0', EC_PRIVATE_KEY_LEN);
+
+    if ((ret = wally_base58_from_bytes(buffer, written, BASE58_FLAG_CHECKSUM, &encryptedFile)) != 0) {
+        printf("wally_base58_from_bytes failed\n");
+    };
+
+    clearThenFree(buffer, written);
+
+    return encryptedFile;
+}
+
+EMSCRIPTEN_KEEPALIVE
+char    *encryptStringWithPassword(const char *userPassword, const char *toEncrypt) {
+    unsigned char   key[PBKDF2_HMAC_SHA256_LEN];
+    unsigned char   *cipher = NULL;
+    char            *encryptedFile = NULL;
+    size_t          cipher_len;
+    int             ret;
+
+    // generate key from password
+    if ((ret = wally_pbkdf2_hmac_sha256(
+                            (unsigned char*)userPassword, 
+                            strlen(userPassword), 
+                            NULL, 
+                            (size_t)0,
+                            0,
+                            16384,
+                            key, 
+                            PBKDF2_HMAC_SHA256_LEN)) != 0) {
+        printf("wally_pbkdf2_hmac_sha256 failed with %d\n", ret);
+        return NULL;
+    };
+
+    if ((cipher = encryptWithAes(toEncrypt, key, &cipher_len)) == NULL) {
+        printf("encryptWithAes failed\n");
+        return NULL;
+    }
+
+    memset(key, '\0', sizeof(key));
+
+    if ((ret = wally_base58_from_bytes(cipher, cipher_len, BASE58_FLAG_CHECKSUM, &encryptedFile)) != 0) {
+        printf("wally_base58_from_bytes failed\n");
+    };
+
+    clearThenFree(cipher, cipher_len);
+
+    return encryptedFile;
+}
+
+EMSCRIPTEN_KEEPALIVE
 char    *pubkeyFromPrivkey(const char *privkey_hex) {
     unsigned char   *buffer = NULL;
     unsigned char   privkey[EC_PRIVATE_KEY_LEN];
