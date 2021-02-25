@@ -71,6 +71,7 @@ void    *reverseBytes(const unsigned char *bytes, const size_t bytes_len) {
     return bytes_out;
 }
 
+// TODO: directly copy the bytes in an array passed as argument 
 unsigned char *convertHexToBytes(const char *hexstring, size_t *bytes_len) {
     /* takes a hexstring, allocates and returns a bytes array */
     unsigned char *bytes;
@@ -204,6 +205,46 @@ cleanup:
 
     return hdPath;
 }
+
+struct ext_key *getChildFromXprv(const char *xprv, const uint32_t *hdPath, const size_t path_len) {
+    struct ext_key *hdKey;
+    struct ext_key *child;
+    int ret;
+
+    if ((ret = bip32_key_from_base58_alloc(xprv, &hdKey)) != 0) {
+        printf("bip32_key_from_base58 failed with %d error code\n", ret);
+        return NULL;
+    };
+
+    if ((ret = bip32_key_from_parent_path_alloc(hdKey, hdPath, path_len, BIP32_FLAG_KEY_PRIVATE, &child)) != 0) {
+        printf("bip32_key_from_parent_path failed with %d error code\n", ret);
+    }
+
+    bip32_key_free(hdKey);
+
+    return child;
+}
+
+struct ext_key *getChildFromXpub(const char *xpub, const uint32_t *hdPath, const size_t path_len) {
+    struct ext_key *hdKey;
+    struct ext_key *child;
+    int ret;
+
+    if ((ret = bip32_key_from_base58_alloc(xpub, &hdKey)) != 0) {
+        printf("bip32_key_from_base58 failed with %d error code\n", ret);
+        return NULL;
+    };
+
+    if ((ret = bip32_key_from_parent_path_alloc(hdKey, hdPath, path_len, BIP32_FLAG_KEY_PUBLIC, &child)) != 0) {
+        printf("bip32_key_from_parent_path failed with %d error code\n", ret);
+    }
+
+    bip32_key_free(hdKey);
+
+    return child;
+}
+
+
 unsigned char   *getWitnessProgram(const unsigned char *script, const size_t script_len, int *isP2WSH) {
     unsigned char *program = NULL;
     int ret;

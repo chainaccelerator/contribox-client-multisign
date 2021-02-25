@@ -263,6 +263,39 @@ char    *pubkeyFromPrivkey(const char *privkey_hex) {
 }
 
 EMSCRIPTEN_KEEPALIVE
+char    *addressFromPrivkey(const char *privkey_hex) {
+    unsigned char   *buffer = NULL;
+    unsigned char   privkey[EC_PRIVATE_KEY_LEN];
+    char            *wif = NULL;
+    char            *address = NULL;
+    size_t          written;
+    int             ret = 1;
+
+    // get the signing key in bytes form
+    if (!(buffer = convertHexToBytes(privkey_hex, &written))) {
+        printf("convertHexToBytes failed\n");
+        return NULL;
+    }
+
+    memcpy(privkey, buffer, sizeof(privkey));
+
+    clearThenFree(buffer, written);
+
+    // get the wif format
+    if ((ret = wally_wif_from_bytes(privkey, EC_PRIVATE_KEY_LEN, WALLY_ADDRESS_VERSION_WIF_TESTNET, WALLY_WIF_FLAG_COMPRESSED, &wif))) {
+        printf("wally_wif_from_bytes failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    // get the legacy address from wif
+    if ((ret = wally_wif_to_address(wif, WALLY_ADDRESS_VERSION_WIF_TESTNET, WALLY_ADDRESS_VERSION_P2PKH_LIQUID_REGTEST, &address))) {
+        printf("wally_wif_to_address failed with %d error code\n", ret);
+    }
+
+    return address;
+}
+
+EMSCRIPTEN_KEEPALIVE
 char *getAddressFromScript(const char *script_hex) {
     unsigned char *script = NULL;
     unsigned char *program = NULL;
@@ -298,42 +331,42 @@ cleanup:
     return address;
 }
 
-struct ext_key *getChildFromXprv(const char *xprv, const uint32_t *hdPath, const size_t path_len) {
-    struct ext_key *hdKey;
+EMSCRIPTEN_KEEPALIVE
+char *getPrivkeyFromXprv(const char *xprv, const char *path, const size_t range) {
     struct ext_key *child;
+    char *privkey_hex;
+    unsigned char privkey[EC_PUBLIC_KEY_LEN];
+    uint32_t    *hdPath;
+    size_t      path_len;
     int ret;
 
-    if ((ret = bip32_key_from_base58_alloc(xprv, &hdKey)) != 0) {
-        printf("bip32_key_from_base58 failed with %d error code\n", ret);
-        return NULL;
-    };
-
-    if ((ret = bip32_key_from_parent_path_alloc(hdKey, hdPath, path_len, BIP32_FLAG_KEY_PRIVATE, &child)) != 0) {
-        printf("bip32_key_from_parent_path failed with %d error code\n", ret);
+    if ((hdPath = parseHdPath(path, &path_len)) == NULL) {
+        printf("parseHdPath failed\n");
+        return "";
     }
 
-    bip32_key_free(hdKey);
+    if (range > 0) {
+        hdPath[path_len - 1] = (uint32_t)(rand() % range);
+    } 
 
-    return child;
-}
-
-struct ext_key *getChildFromXpub(const char *xpub, const uint32_t *hdPath, const size_t path_len) {
-    struct ext_key *hdKey;
-    struct ext_key *child;
-    int ret;
-
-    if ((ret = bip32_key_from_base58_alloc(xpub, &hdKey)) != 0) {
-        printf("bip32_key_from_base58 failed with %d error code\n", ret);
-        return NULL;
-    };
-
-    if ((ret = bip32_key_from_parent_path_alloc(hdKey, hdPath, path_len, BIP32_FLAG_KEY_PUBLIC, &child)) != 0) {
-        printf("bip32_key_from_parent_path failed with %d error code\n", ret);
+    if ((child = getChildFromXprv(xprv, hdPath, path_len)) == NULL) {
+        printf("getChildFromXprv failed\n");
+        return "";
     }
 
-    bip32_key_free(hdKey);
+    memcpy(privkey, (child->priv_key) + 1, EC_PRIVATE_KEY_LEN); // we skip the first byte which is a '\0' flag
 
-    return child;
+    bip32_key_free(child);
+    free(hdPath);
+
+    if ((ret = wally_hex_from_bytes(privkey, EC_PRIVATE_KEY_LEN, &privkey_hex)) != 0) {
+        printf("wally_hex_from_bytes failed with %d error code\n", ret);
+        return "";
+    }
+
+    memset(privkey, '\0', EC_PRIVATE_KEY_LEN);
+
+    return privkey_hex;
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -639,12 +672,50 @@ char    *getSigningKey(const char *xprv, const char *address, const char *path, 
 }
 
 EMSCRIPTEN_KEEPALIVE
+char    *createMessageToSign(const char *hash_hex) {
+    unsigned char   *buffer = NULL;
+    unsigned char   hash[SHA256_LEN];
+    unsigned char   format[SHA256_LEN];
+    char            *message = NULL;
+    size_t          written;
+    int             ret = 1;
+
+    // check the length of provided hex string, must be SHA256_LEN * 2
+    if (strlen(hash_hex) != SHA256_LEN * 2) {
+        printf("Provided message is not a sha256 hash, it's %zu long\n", strlen(hash_hex));
+        return NULL;
+    }
+
+    // get the message in bytes form
+    if (!(buffer = convertHexToBytes(hash_hex, &written))) {
+        printf("convertHexToBytes failed\n");
+        return NULL;
+    }
+
+    memcpy(hash, buffer, sizeof(hash));
+
+    clearThenFree(buffer, written);
+
+    // format it
+    if ((ret = wally_format_bitcoin_message(hash, sizeof(hash), BITCOIN_MESSAGE_FLAG_HASH, format, sizeof(format), &written))) {
+        printf("wally_format_bitcoin_message failed with %d error code\n", ret);
+        return NULL;
+    }
+    
+    if ((ret = wally_hex_from_bytes(format, written, &message))) {
+        printf("wally_hex_from_bytes failed with %d error code\n", ret);
+    }
+
+    return message;
+}
+
+EMSCRIPTEN_KEEPALIVE
 char    *signHashWithKey(const char *signingKey_hex, const char *hash_hex) {
     unsigned char   *temp = NULL;
     unsigned char   signingKey[EC_PRIVATE_KEY_LEN];
     unsigned char   toSign[EC_MESSAGE_HASH_LEN];
     unsigned char   derSig[EC_SIGNATURE_DER_MAX_LEN];
-    char            *derSig_hex = NULL;
+    char            *derSig_64 = NULL;
     size_t          written;
     int             ret = 1;
 
@@ -673,18 +744,61 @@ char    *signHashWithKey(const char *signingKey_hex, const char *hash_hex) {
     clearThenFree(temp, written);
 
     // sign the hash with the provided key
-    if (signHashECDSA(signingKey, toSign, derSig, &written)) {
-        printf("signHashECDSA failed\n");
+    if (signMessageECDSA(signingKey, toSign, derSig, &written)) {
+        printf("signMessageECDSA failed\n");
         return NULL;
     }
 
     // convert the der signature to hex string 
-    if ((ret = wally_hex_from_bytes(derSig, written, &derSig_hex)) != 0) {
+    if ((ret = wally_base64_from_bytes(derSig, written, 0, &derSig_64)) != 0) {
         printf("wally_hex_from_bytes failed with %d error code\n", ret);
         return NULL;
     }
 
-    return derSig_hex;
+    return derSig_64;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int verifySignatureWithPubkey(const char *hash_hex, const char *sig_64) {
+    unsigned char   *buffer = NULL;
+    unsigned char   hash[EC_MESSAGE_HASH_LEN];
+    unsigned char   sig[EC_SIGNATURE_RECOVERABLE_LEN];
+    size_t          sig_len;
+    unsigned char   pubkey[EC_PUBLIC_KEY_LEN];
+    size_t          written;
+    int             ret = 1;
+
+    printf("signature is %s\n", sig_64);
+    printf("message is %s\n", hash_hex);
+    printf("pubkey is %s\n", pubkey_hex);
+    // get the size of the decoded base 64 der signature
+    if ((ret = wally_base64_get_maximum_length(sig_64, 0, &sig_len))) {
+        printf("wally_base64_get_maximum_length failed with %d error code\n", ret);
+        return ret;
+    }
+
+    printf("sig_len is %zu\n", sig_len);
+
+    // get the compact signature
+    if ((ret = wally_base64_to_bytes(sig_64, 0, sig, sig_len, &written))) {
+        printf("wally_base64_to_bytes failed with %d error code\n", ret);
+        return ret;
+    }
+
+    printBytesInHex(sig, sizeof(sig), "sig");
+
+    // get hash in byte
+    if (!(buffer = convertHexToBytes(hash_hex, &written))) {
+        printf("convertHexToBytes failed\n");
+        return 1;
+    }
+
+    memcpy(hash, buffer, sizeof(hash));
+
+    clearThenFree(buffer, written);
+
+    // verify signature
+    return wally_ec_sig_to_public_key(hash, sizeof(hash), sig, sizeof(sig), pubkey, sizeof(pubkey));
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -744,8 +858,8 @@ char    *signProposalTx(const char *unsignedTx, const char *signingKey_hex) {
     }
 
     // and finally create the signature
-    if ((signHashECDSA(signingKey, sighash, derSig, &written))) {
-        printf("signHashWithKey failed\n");
+    if ((signTransactionECDSA(signingKey, sighash, derSig, &written))) {
+        printf("signTransactionECDSA failed\n");
         goto cleanup;
     }
 

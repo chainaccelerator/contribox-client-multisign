@@ -26,6 +26,8 @@
 #define CONFIDENTIAL_ADDRESS_LIQUID_V1 "lq"
 #define CONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST "el"
 
+#define BITCOIN_MAGIC "Bitcoin Signed Message:\n"
+
 #define ISSUANCE_ASSET_AMT (unsigned long long)1
 #define ISSUANCE_TOKEN_AMT (unsigned long long)0
 
@@ -85,6 +87,8 @@ void printBytesInHex(const unsigned char *toPrint, const size_t len, const char 
 void printBytesInHexReversed(const unsigned char *toPrint, const size_t len, const char *label);
 unsigned char *getWitnessProgram(const unsigned char *script, const size_t script_len, int *isP2WSH);
 uint32_t *parseHdPath(const char *stringPath, size_t *path_len);
+struct ext_key *getChildFromXprv(const char *xprv, const uint32_t *hdPath, const size_t path_len);
+struct ext_key *getChildFromXpub(const char *xpub, const uint32_t *hdPath, const size_t path_len);
 
 // issuance.c
 int getNewAssetID(const unsigned char *txID, const uint32_t vout, const unsigned char *reversed_contractHash, unsigned char *newAssetID);
@@ -96,7 +100,9 @@ int addInputToTx(struct wally_tx *tx, const unsigned char *prevTxID, const unsig
 
 // signature.c
 /** sign a message which must be a sha256 hash (32B long) with provided key **/
-int signHashECDSA(const unsigned char *signingKey, const unsigned char *toSign, unsigned char *derSig, size_t *written);
+int signMessageECDSA(const unsigned char *signingKey, const unsigned char *toSign, unsigned char *derSig, size_t *written);
+int verifyMessageECDSA(const unsigned char *pubkey, const unsigned char *hash, const unsigned char *sig);
+int signTransactionECDSA(const unsigned char *signingKey, const unsigned char *toSign, unsigned char *derSig, size_t *written);
 
 // crypto.c
 unsigned char   *encryptWithAes(const char *toEncrypt, const unsigned char *key, size_t *cipher_len);
