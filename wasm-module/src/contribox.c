@@ -335,14 +335,15 @@ EMSCRIPTEN_KEEPALIVE
 char *getPrivkeyFromXprv(const char *xprv, const char *path, const size_t range) {
     struct ext_key *child;
     char *privkey_hex;
-    unsigned char privkey[EC_PUBLIC_KEY_LEN];
+    char    *wif;
+    unsigned char privkey[EC_PRIVATE_KEY_LEN];
     uint32_t    *hdPath;
     size_t      path_len;
     int ret;
 
     if ((hdPath = parseHdPath(path, &path_len)) == NULL) {
         printf("parseHdPath failed\n");
-        return "";
+        return 0;
     }
 
     if (range > 0) {
@@ -351,17 +352,19 @@ char *getPrivkeyFromXprv(const char *xprv, const char *path, const size_t range)
 
     if ((child = getChildFromXprv(xprv, hdPath, path_len)) == NULL) {
         printf("getChildFromXprv failed\n");
-        return "";
+        return 0;
     }
 
     memcpy(privkey, (child->priv_key) + 1, EC_PRIVATE_KEY_LEN); // we skip the first byte which is a '\0' flag
+
+    // printBytesInHex(privkey, sizeof(privkey), "privkey");
 
     bip32_key_free(child);
     free(hdPath);
 
     if ((ret = wally_hex_from_bytes(privkey, EC_PRIVATE_KEY_LEN, &privkey_hex)) != 0) {
         printf("wally_hex_from_bytes failed with %d error code\n", ret);
-        return "";
+        return 0;
     }
 
     memset(privkey, '\0', EC_PRIVATE_KEY_LEN);
@@ -768,16 +771,16 @@ int verifySignatureWithPubkey(const char *hash_hex, const char *sig_64) {
     size_t          written;
     int             ret = 1;
 
-    printf("signature is %s\n", sig_64);
-    printf("message is %s\n", hash_hex);
-    printf("pubkey is %s\n", pubkey_hex);
+    printf("provided signature in base64 is %s\n", sig_64);
+    printf("message being verified is %s\n", hash_hex);
+    // printf("pubkey is %s\n", pubkey_hex);
     // get the size of the decoded base 64 der signature
     if ((ret = wally_base64_get_maximum_length(sig_64, 0, &sig_len))) {
         printf("wally_base64_get_maximum_length failed with %d error code\n", ret);
         return ret;
     }
 
-    printf("sig_len is %zu\n", sig_len);
+    // printf("sig_len is %zu\n", sig_len);
 
     // get the compact signature
     if ((ret = wally_base64_to_bytes(sig_64, 0, sig, sig_len, &written))) {
@@ -785,7 +788,7 @@ int verifySignatureWithPubkey(const char *hash_hex, const char *sig_64) {
         return ret;
     }
 
-    printBytesInHex(sig, sizeof(sig), "sig");
+    // printBytesInHex(sig, sizeof(sig), "sig");
 
     // get hash in byte
     if (!(buffer = convertHexToBytes(hash_hex, &written))) {
@@ -798,7 +801,11 @@ int verifySignatureWithPubkey(const char *hash_hex, const char *sig_64) {
     clearThenFree(buffer, written);
 
     // verify signature
-    return wally_ec_sig_to_public_key(hash, sizeof(hash), sig, sizeof(sig), pubkey, sizeof(pubkey));
+    ret = wally_ec_sig_to_public_key(hash, sizeof(hash), sig, sizeof(sig), pubkey, sizeof(pubkey));
+
+    printBytesInHex(pubkey, sizeof(pubkey), "pubkey returned from wally_ec_sig_to_public_key");
+
+    return ret;
 }
 
 EMSCRIPTEN_KEEPALIVE

@@ -251,9 +251,8 @@ function signHash(xprv, hdPath, range, hash) {
     return "";
   }
 
-  console.log("signingkey is " + signingKey);
 
-  console.log("hash is " + hash);
+  console.log("message to sign is " + hash);
 
   // get the pubkey
   if ((pubkey_ptr = ccall('getPubkeyFromXprv', 'number', ['string', 'string', 'number'], [xprv, hdPath, range])) === 0) {
@@ -264,7 +263,8 @@ function signHash(xprv, hdPath, range, hash) {
   if ((pubkey = convertToString(pubkey_ptr, "pubkey")) === "") {
     return "";
   }
-  console.log("pubkey is " + pubkey);
+  console.log("signingkey is " + signingKey);
+  console.log("corresponding pubkey is " + pubkey);
 
   // get the address corresponding to this private key
   if ((address_ptr = ccall('addressFromPrivkey', 'number', ['string'], [signingKey])) === 0) {
@@ -286,15 +286,15 @@ function signHash(xprv, hdPath, range, hash) {
     return "";
   }
 
-  console.log("message is " + message);
+  console.log("formated message is " + message);
 
   // sign the message with key
-  if ((derSignature_ptr = ccall('signHashWithKey', 'number', ['string', 'string'], [signingKey, message])) === 0) {
+  if ((signature_ptr = ccall('signHashWithKey', 'number', ['string', 'string'], [signingKey, message])) === 0) {
     console.error("signHashWithKey failed");
     return "";
   }
 
-  if ((derSignature = convertToString(derSignature_ptr, "derSignature")) === "") {
+  if ((signature = convertToString(signature_ptr, "derSignature")) === "") {
     return "";
   }
 
@@ -313,17 +313,15 @@ function signHash(xprv, hdPath, range, hash) {
     "xpub": xpub,
     "hdPath": hdPath,
     "range": range,
-    "derSignature": derSignature
+    "signature": signature
   }
 
   return JSON.stringify(Signature);
 }
 
-function verifySignature(message, pubkey, signature) {
+function verifySignature(message, signature) {
   // verify the signature against the message and pubkey
-  if ((ret = ccall('verifySignatureWithPubkey', 'number', ['string', 'string', 'string'], [message, pubkey, signature]))) {
-    console.error("The provided signature is invalid")
-  }
+  ret = ccall('verifySignatureWithPubkey', 'number', ['string', 'string', 'string'], [message, signature]);
   // return true or false
   if (ret)
     return false;

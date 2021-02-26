@@ -28,13 +28,12 @@ static int  signHashECDSA(const unsigned char *signingKey, const unsigned char *
         memcpy(signature, sig, *sig_len);
     }
 
-    printf("sig_len is %zu\n", *sig_len);
     printBytesInHex(signature, *sig_len, "signature");
     return ret;
 }
 
 int signMessageECDSA(const unsigned char *signingKey, const unsigned char *toSign, unsigned char *derSig, size_t *written) {
-    uint32_t flags = EC_FLAG_ECDSA | EC_FLAG_RECOVERABLE;
+    uint32_t flags = EC_FLAG_ECDSA | EC_FLAG_RECOVERABLE | EC_FLAG_GRIND_R;
 
     return signHashECDSA(signingKey, toSign, flags, derSig, written);
 }
