@@ -252,7 +252,9 @@ moduleOverrides = null;
 // to the proper local x. This has two benefits: first, we only emit it if it is
 // expected to arrive, and second, by using a local everywhere else that can be
 // minified.
-if (Module['arguments']) arguments_ = Module['arguments'];if (!Object.getOwnPropertyDescriptor(Module, 'arguments')) {
+
+if (Module['arguments']) arguments_ = Module['arguments'];
+if (!Object.getOwnPropertyDescriptor(Module, 'arguments')) {
   Object.defineProperty(Module, 'arguments', {
     configurable: true,
     get: function() {
@@ -260,7 +262,9 @@ if (Module['arguments']) arguments_ = Module['arguments'];if (!Object.getOwnProp
     }
   });
 }
-if (Module['thisProgram']) thisProgram = Module['thisProgram'];if (!Object.getOwnPropertyDescriptor(Module, 'thisProgram')) {
+
+if (Module['thisProgram']) thisProgram = Module['thisProgram'];
+if (!Object.getOwnPropertyDescriptor(Module, 'thisProgram')) {
   Object.defineProperty(Module, 'thisProgram', {
     configurable: true,
     get: function() {
@@ -268,7 +272,9 @@ if (Module['thisProgram']) thisProgram = Module['thisProgram'];if (!Object.getOw
     }
   });
 }
-if (Module['quit']) quit_ = Module['quit'];if (!Object.getOwnPropertyDescriptor(Module, 'quit')) {
+
+if (Module['quit']) quit_ = Module['quit'];
+if (!Object.getOwnPropertyDescriptor(Module, 'quit')) {
   Object.defineProperty(Module, 'quit', {
     configurable: true,
     get: function() {
@@ -288,6 +294,7 @@ assert(typeof Module['readAsync'] === 'undefined', 'Module.readAsync option was 
 assert(typeof Module['readBinary'] === 'undefined', 'Module.readBinary option was removed (modify readBinary in JS)');
 assert(typeof Module['setWindowTitle'] === 'undefined', 'Module.setWindowTitle option was removed (modify setWindowTitle in JS)');
 assert(typeof Module['TOTAL_MEMORY'] === 'undefined', 'Module.TOTAL_MEMORY has been renamed Module.INITIAL_MEMORY');
+
 if (!Object.getOwnPropertyDescriptor(Module, 'read')) {
   Object.defineProperty(Module, 'read', {
     configurable: true,
@@ -296,6 +303,7 @@ if (!Object.getOwnPropertyDescriptor(Module, 'read')) {
     }
   });
 }
+
 if (!Object.getOwnPropertyDescriptor(Module, 'readAsync')) {
   Object.defineProperty(Module, 'readAsync', {
     configurable: true,
@@ -304,6 +312,7 @@ if (!Object.getOwnPropertyDescriptor(Module, 'readAsync')) {
     }
   });
 }
+
 if (!Object.getOwnPropertyDescriptor(Module, 'readBinary')) {
   Object.defineProperty(Module, 'readBinary', {
     configurable: true,
@@ -312,6 +321,7 @@ if (!Object.getOwnPropertyDescriptor(Module, 'readBinary')) {
     }
   });
 }
+
 if (!Object.getOwnPropertyDescriptor(Module, 'setWindowTitle')) {
   Object.defineProperty(Module, 'setWindowTitle', {
     configurable: true,
@@ -562,7 +572,9 @@ function getCompilerSetting(name) {
 // An online HTML version (which may be of a different version of Emscripten)
 //    is up at http://kripken.github.io/emscripten-site/docs/api_reference/preamble.js.html
 
-var wasmBinary;if (Module['wasmBinary']) wasmBinary = Module['wasmBinary'];if (!Object.getOwnPropertyDescriptor(Module, 'wasmBinary')) {
+var wasmBinary;
+if (Module['wasmBinary']) wasmBinary = Module['wasmBinary'];
+if (!Object.getOwnPropertyDescriptor(Module, 'wasmBinary')) {
   Object.defineProperty(Module, 'wasmBinary', {
     configurable: true,
     get: function() {
@@ -570,7 +582,8 @@ var wasmBinary;if (Module['wasmBinary']) wasmBinary = Module['wasmBinary'];if (!
     }
   });
 }
-var noExitRuntime;if (Module['noExitRuntime']) noExitRuntime = Module['noExitRuntime'];if (!Object.getOwnPropertyDescriptor(Module, 'noExitRuntime')) {
+var noExitRuntime = Module['noExitRuntime'] || true;
+if (!Object.getOwnPropertyDescriptor(Module, 'noExitRuntime')) {
   Object.defineProperty(Module, 'noExitRuntime', {
     configurable: true,
     get: function() {
@@ -1182,7 +1195,8 @@ function updateGlobalBufferAndViews(buf) {
 var TOTAL_STACK = 5242880;
 if (Module['TOTAL_STACK']) assert(TOTAL_STACK === Module['TOTAL_STACK'], 'the stack size can no longer be determined at runtime')
 
-var INITIAL_MEMORY = Module['INITIAL_MEMORY'] || 16777216;if (!Object.getOwnPropertyDescriptor(Module, 'INITIAL_MEMORY')) {
+var INITIAL_MEMORY = Module['INITIAL_MEMORY'] || 16777216;
+if (!Object.getOwnPropertyDescriptor(Module, 'INITIAL_MEMORY')) {
   Object.defineProperty(Module, 'INITIAL_MEMORY', {
     configurable: true,
     get: function() {
@@ -1768,7 +1782,6 @@ var ASM_CONSTS = {
       abort('Cannot enlarge memory arrays to size ' + requestedSize + ' bytes (OOM). Either (1) compile with  -s INITIAL_MEMORY=X  with X higher than the current value ' + HEAP8.length + ', (2) compile with  -s ALLOW_MEMORY_GROWTH=1  which allows increasing the size at runtime, or (3) if you want malloc to return NULL (0) instead of this abort, compile with  -s ABORTING_MALLOC=0 ');
     }
   function _emscripten_resize_heap(requestedSize) {
-      requestedSize = requestedSize >>> 0;
       abortOnCannotGrowMemory(requestedSize);
     }
 
@@ -1898,10 +1911,22 @@ var _hdKeyFromSeed = Module["_hdKeyFromSeed"] = createExportWrapper("hdKeyFromSe
 var _xpubFromXprv = Module["_xpubFromXprv"] = createExportWrapper("xpubFromXprv");
 
 /** @type {function(...*):?} */
+var _encryptStringWithPubkey = Module["_encryptStringWithPubkey"] = createExportWrapper("encryptStringWithPubkey");
+
+/** @type {function(...*):?} */
+var _encryptStringWithPassword = Module["_encryptStringWithPassword"] = createExportWrapper("encryptStringWithPassword");
+
+/** @type {function(...*):?} */
 var _pubkeyFromPrivkey = Module["_pubkeyFromPrivkey"] = createExportWrapper("pubkeyFromPrivkey");
 
 /** @type {function(...*):?} */
+var _addressFromPrivkey = Module["_addressFromPrivkey"] = createExportWrapper("addressFromPrivkey");
+
+/** @type {function(...*):?} */
 var _getAddressFromScript = Module["_getAddressFromScript"] = createExportWrapper("getAddressFromScript");
+
+/** @type {function(...*):?} */
+var _getPrivkeyFromXprv = Module["_getPrivkeyFromXprv"] = createExportWrapper("getPrivkeyFromXprv");
 
 /** @type {function(...*):?} */
 var _getPubkeyFromXpub = Module["_getPubkeyFromXpub"] = createExportWrapper("getPubkeyFromXpub");
@@ -1919,7 +1944,13 @@ var _createTransactionWithNewAsset = Module["_createTransactionWithNewAsset"] = 
 var _getSigningKey = Module["_getSigningKey"] = createExportWrapper("getSigningKey");
 
 /** @type {function(...*):?} */
+var _createMessageToSign = Module["_createMessageToSign"] = createExportWrapper("createMessageToSign");
+
+/** @type {function(...*):?} */
 var _signHashWithKey = Module["_signHashWithKey"] = createExportWrapper("signHashWithKey");
+
+/** @type {function(...*):?} */
+var _verifySignatureWithPubkey = Module["_verifySignatureWithPubkey"] = createExportWrapper("verifySignatureWithPubkey");
 
 /** @type {function(...*):?} */
 var _signProposalTx = Module["_signProposalTx"] = createExportWrapper("signProposalTx");
@@ -2031,6 +2062,8 @@ if (!Object.getOwnPropertyDescriptor(Module, "ENV")) Module["ENV"] = function() 
 if (!Object.getOwnPropertyDescriptor(Module, "ERRNO_CODES")) Module["ERRNO_CODES"] = function() { abort("'ERRNO_CODES' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ)") };
 if (!Object.getOwnPropertyDescriptor(Module, "ERRNO_MESSAGES")) Module["ERRNO_MESSAGES"] = function() { abort("'ERRNO_MESSAGES' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ)") };
 if (!Object.getOwnPropertyDescriptor(Module, "setErrNo")) Module["setErrNo"] = function() { abort("'setErrNo' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ)") };
+if (!Object.getOwnPropertyDescriptor(Module, "readSockaddr")) Module["readSockaddr"] = function() { abort("'readSockaddr' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ)") };
+if (!Object.getOwnPropertyDescriptor(Module, "writeSockaddr")) Module["writeSockaddr"] = function() { abort("'writeSockaddr' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ)") };
 if (!Object.getOwnPropertyDescriptor(Module, "DNS")) Module["DNS"] = function() { abort("'DNS' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ)") };
 if (!Object.getOwnPropertyDescriptor(Module, "getHostByName")) Module["getHostByName"] = function() { abort("'getHostByName' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ)") };
 if (!Object.getOwnPropertyDescriptor(Module, "GAI_ERRNO_MESSAGES")) Module["GAI_ERRNO_MESSAGES"] = function() { abort("'GAI_ERRNO_MESSAGES' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ)") };
@@ -2337,8 +2370,6 @@ if (Module['preInit']) {
     Module['preInit'].pop()();
   }
 }
-
-noExitRuntime = true;
 
 run();
 

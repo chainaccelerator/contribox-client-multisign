@@ -227,8 +227,6 @@ function signIssueAssetTx(unsignedTx, address, wallet) {
     return "";
   }
 
-  console.log("signingKey is " + signingKey);
-
   // sign the tx
   if ((signedTx_ptr = ccall('signProposalTx', 'number', ['string', 'string'], [unsignedTx, signingKey])) === 0) {
     console.error("signProposalTx failed");
@@ -242,32 +240,92 @@ function signIssueAssetTx(unsignedTx, address, wallet) {
   return signedTx;
 }
 
-function signHash(signingKey, hash) {
-  if ((derSignature_ptr = ccall('signHashWithKey', 'number', ['string', 'string'], [signingKey, hash])) === 0) {
-    console.error("signHashWithKey failed");
+function signHash(xprv, hdPath, range, hash) {
+  // first get a signing key 
+  if ((signingKey_ptr = ccall('getPrivkeyFromXprv', 'number', ['string', 'string', 'number'], [xprv, hdPath, range])) === 0) {
+    console.error("getPrivkeyFromXprv failed");
     return "";
   }
 
-  if ((derSignature = convertToString(derSignature_ptr, "derSignature")) === "") {
+  if ((signingKey = convertToString(signingKey_ptr, "signingKey")) === "") {
     return "";
   }
 
-  // now get the pubkey and add it to the returned object
-  if ((pubkey_ptr = ccall('pubkeyFromPrivkey', 'number', ['string'], [signingKey])) === 0) {
-    console.error("pubkeyFromPrivkey failed");
+
+  console.log("message to sign is " + hash);
+
+  // get the pubkey
+  if ((pubkey_ptr = ccall('getPubkeyFromXprv', 'number', ['string', 'string', 'number'], [xprv, hdPath, range])) === 0) {
+    console.error("getPubkeyFromXprv failed");
     return "";
   }
 
   if ((pubkey = convertToString(pubkey_ptr, "pubkey")) === "") {
     return "";
   }
+  console.log("signingkey is " + signingKey);
+  console.log("corresponding pubkey is " + pubkey);
+
+  // get the address corresponding to this private key
+  if ((address_ptr = ccall('addressFromPrivkey', 'number', ['string'], [signingKey])) === 0) {
+    console.error("getAddressFromPrivkey failed");
+  }
+
+  if ((address = convertToString(address_ptr, "address")) === "") {
+    return "";
+  }
+  console.log("address is " + address);
+
+  // format the message to be signed
+  if ((message_ptr = ccall('createMessageToSign', 'number', ['string'], [hash])) === 0) {
+    console.error("createMessageToSign failed");
+    return "";
+  }
+
+  if ((message = convertToString(message_ptr, "message")) === "") {
+    return "";
+  }
+
+  console.log("formated message is " + message);
+
+  // sign the message with key
+  if ((signature_ptr = ccall('signHashWithKey', 'number', ['string', 'string'], [signingKey, message])) === 0) {
+    console.error("signHashWithKey failed");
+    return "";
+  }
+
+  if ((signature = convertToString(signature_ptr, "derSignature")) === "") {
+    return "";
+  }
+
+  // now get the xpub and add it to the returned object
+  if ((xpub_ptr = ccall('xpubFromXprv', 'number', ['string'], [xprv])) === 0) {
+    console.error("pubkeyFromPrivkey failed");
+    return "";
+  }
+
+  if ((xpub = convertToString(xpub_ptr, "xpub")) === "") {
+    return "";
+  }
 
   let Signature = {
-    "derSignature": derSignature,
-    "pubkey": pubkey
+    "hash": hash,
+    "xpub": xpub,
+    "hdPath": hdPath,
+    "range": range,
+    "signature": signature
   }
 
   return JSON.stringify(Signature);
+}
+
+function verifySignature(message, signature) {
+  // verify the signature against the message and pubkey
+  ret = ccall('verifySignatureWithPubkey', 'number', ['string', 'string', 'string'], [message, signature]);
+  // return true or false
+  if (ret)
+    return false;
+  return true;
 }
 
 function encryptHashWithPubkeys(message, pubkeys) {
@@ -277,11 +335,9 @@ function encryptHashWithPubkeys(message, pubkeys) {
     var xpub = pubkeys[i].xpub;
     var hdPath = pubkeys[i].hdPath;
     var range = pubkeys[i].range;
-    var encryptedProof_ptr;
-    var encryptedProof;
     
-    // derive a pubkey in the provided path
-    if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'string', 'number'], [hdPath, hdPath.length, range])) === 0) {
+    // derive a pubkey in the provided path and range
+    if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'string', 'number'], [xpub, hdPath, range])) === 0) {
       console.error("getPubkeyFromXpub failed");
       return cipher_list = [];
     }
@@ -290,8 +346,12 @@ function encryptHashWithPubkeys(message, pubkeys) {
       return cipher_list = [];
     }
 
+    // generate a new ephemeral private key 
+    let ephemeralPrivkey = new Uint8Array(32); // BIP39_ENTROPY_LEN_256
+    window.crypto.getRandomValues(ephemeralPrivkey);
+
     // encrypt the proof with the pubkey
-    if ((encryptedProof_ptr = ccall('encryptProofWithPubkey', 'number', ['string', 'string'], [message, pubkey])) === 0) {
+    if ((encryptedProof_ptr = ccall('encryptStringWithPubkey', 'number', ['string', 'string', 'array'], [pubkey, message, ephemeralPrivkey])) === 0) {
       console.error("encryptProofWithPubkey failed");
       return cipher_list = [];
     }
@@ -303,10 +363,9 @@ function encryptHashWithPubkeys(message, pubkeys) {
     var newItem = {
       "encryptedProof": encryptedProof,
       "xpub": xpub,
-      "hdPath": hdPath
     }
     cipher_list.push(newItem);
   }  
 
-  return cipher_list;
+  return JSON.stringify(cipher_list);
 }
