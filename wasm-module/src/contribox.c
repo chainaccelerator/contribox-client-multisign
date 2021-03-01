@@ -87,7 +87,7 @@ char *hdKeyFromSeed(const char *seed_hex) {
 
     wally_hex_to_bytes(seed_hex, seed, BIP39_SEED_LEN_512, &written);
 
-    if ((ret = bip32_key_from_seed_alloc(seed, BIP39_SEED_LEN_512, BIP32_VER_MAIN_PRIVATE, (uint32_t)0, &hdKey)) != 0) {
+    if ((ret = bip32_key_from_seed_alloc(seed, BIP39_SEED_LEN_512, BIP32_VER_TEST_PRIVATE, (uint32_t)0, &hdKey)) != 0) {
         printf("bip32_key_from_seed failed with %d error\n", ret);
         return "";
     } 
