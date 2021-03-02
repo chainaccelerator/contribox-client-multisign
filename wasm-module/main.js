@@ -109,12 +109,22 @@ function generateWallet(mnemonic) {
     return "";
   }
 
+  // FIXME: derive a pubkey0 (for testing purpose)
+  if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'string', 'number'], [xpub, "0/0", 0])) === 0) {
+    console.error("getPubkeyFromXpub failed");
+    return "";
+  }
+
+  if ((pubkey = convertToString(pubkey_ptr, "pubkey")) === "") {
+    return "";
+  }
+
   // write all the relevant data to our wallet obj
   let Wallet = {
     "xprv": xprv,
     "xpub": xpub,
-    "hdPath": "0h/0", // we hardcode it for now
-    "range": 100, // it means we'll use keys between 0h/0 and 0h/100
+    "hdPath": "0/0", // we hardcode it for now
+    "pubkey0": pubkey,
     "seedWords": mnemonic
   }
   
