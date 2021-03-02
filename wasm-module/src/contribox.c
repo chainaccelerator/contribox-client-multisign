@@ -254,7 +254,7 @@ char    *pubkeyFromPrivkey(const char *privkey_hex) {
         return NULL;
     }
 
-    if ((ret = wally_hex_from_bytes(pubkey, written, &pubkey_hex)) != 0) {
+    if ((ret = wally_hex_from_bytes(pubkey, sizeof(pubkey), &pubkey_hex)) != 0) {
         printf("wally_hex_from_bytes failed with %d error code\n", ret);
         return NULL;
     }

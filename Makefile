@@ -15,6 +15,8 @@ bin:
 	docker create --name libwally libwally-wasm:${LIBWALLY_VERSION}
 	docker cp libwally:/src/contribox/contribox.wasm ./bin/
 	docker cp libwally:/src/contribox/contribox.js ./bin/
+	docker cp libwally:/src/contribox/contribox.html ./bin/
+	docker cp libwally:/src/contribox/main.js ./bin/
 	docker rm libwally
 minsc-bin:
 	mkdir ./minsc_bin

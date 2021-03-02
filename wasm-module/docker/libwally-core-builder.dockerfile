@@ -21,9 +21,9 @@ RUN git clone https://github.com/emscripten-core/emsdk.git /src/emsdk
 WORKDIR /src/emsdk
 RUN ./emsdk install latest && ./emsdk activate latest
 
-ARG NOCACHE=41
-RUN git clone https://github.com/Sosthene00/libwally-core.git -b seed_bug /src/contribox/libwally
-# RUN git clone https://github.com/ElementsProject/libwally-core.git -b release_$LIBWALLY_CORE_VERSION /src/contribox/libwally
+# ARG NOCACHE=41
+# RUN git clone https://github.com/Sosthene00/libwally-core.git -b seed_bug /src/contribox/libwally
+RUN git clone https://github.com/ElementsProject/libwally-core.git -b release_$LIBWALLY_CORE_VERSION /src/contribox/libwally
 WORKDIR /src/contribox/libwally
 RUN git submodule init && \
     git submodule sync --recursive && \
