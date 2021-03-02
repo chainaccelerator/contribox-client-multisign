@@ -13,9 +13,6 @@ static int  signHashECDSA(const unsigned char *signingKey, const unsigned char *
         return ret;
     }
 
-    printBytesInHex(sig, *sig_len, "sig");
-    printf("sig_len is %zu\n", *sig_len);
-
     if (!(flags & EC_FLAG_RECOVERABLE)) {
         // convert the signature to DER only if we're signing a transaction (non recoverable signature)
         printf("encoding signature to hex\n");
@@ -28,12 +25,11 @@ static int  signHashECDSA(const unsigned char *signingKey, const unsigned char *
         memcpy(signature, sig, *sig_len);
     }
 
-    printBytesInHex(signature, *sig_len, "signature");
     return ret;
 }
 
 int signMessageECDSA(const unsigned char *signingKey, const unsigned char *toSign, unsigned char *derSig, size_t *written) {
-    uint32_t flags = EC_FLAG_ECDSA | EC_FLAG_RECOVERABLE | EC_FLAG_GRIND_R;
+    uint32_t flags = EC_FLAG_ECDSA | EC_FLAG_RECOVERABLE;
 
     return signHashECDSA(signingKey, toSign, flags, derSig, written);
 }

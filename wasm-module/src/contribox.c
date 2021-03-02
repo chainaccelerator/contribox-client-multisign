@@ -675,32 +675,14 @@ char    *getSigningKey(const char *xprv, const char *address, const char *path, 
 }
 
 EMSCRIPTEN_KEEPALIVE
-char    *createMessageToSign(const char *hash_hex) {
-    unsigned char   *buffer = NULL;
-    unsigned char   hash[SHA256_LEN];
+char    *createMessageToSign(const char *string) {
     unsigned char   format[SHA256_LEN];
     char            *message = NULL;
     size_t          written;
     int             ret = 1;
 
-    // check the length of provided hex string, must be SHA256_LEN * 2
-    if (strlen(hash_hex) != SHA256_LEN * 2) {
-        printf("Provided message is not a sha256 hash, it's %zu long\n", strlen(hash_hex));
-        return NULL;
-    }
-
-    // get the message in bytes form
-    if (!(buffer = convertHexToBytes(hash_hex, &written))) {
-        printf("convertHexToBytes failed\n");
-        return NULL;
-    }
-
-    memcpy(hash, buffer, sizeof(hash));
-
-    clearThenFree(buffer, written);
-
-    // format it
-    if ((ret = wally_format_bitcoin_message(hash, sizeof(hash), BITCOIN_MESSAGE_FLAG_HASH, format, sizeof(format), &written))) {
+    // format the message 
+    if ((ret = wally_format_bitcoin_message((unsigned char *)string, strlen(string), BITCOIN_MESSAGE_FLAG_HASH, format, sizeof(format), &written))) {
         printf("wally_format_bitcoin_message failed with %d error code\n", ret);
         return NULL;
     }
@@ -762,25 +744,23 @@ char    *signHashWithKey(const char *signingKey_hex, const char *hash_hex) {
 }
 
 EMSCRIPTEN_KEEPALIVE
-int verifySignatureWithPubkey(const char *hash_hex, const char *sig_64) {
-    unsigned char   *buffer = NULL;
-    unsigned char   hash[EC_MESSAGE_HASH_LEN];
+int verifySignatureWithAddress(const char *address, const char *string, const char *sig_64) {
+    unsigned char   format[EC_MESSAGE_HASH_LEN];
     unsigned char   sig[EC_SIGNATURE_RECOVERABLE_LEN];
     size_t          sig_len;
     unsigned char   pubkey[EC_PUBLIC_KEY_LEN];
+    char            *recoveredAddress = NULL;
     size_t          written;
     int             ret = 1;
 
     printf("provided signature in base64 is %s\n", sig_64);
-    printf("message being verified is %s\n", hash_hex);
-    // printf("pubkey is %s\n", pubkey_hex);
+    printf("message being verified is %s\n", string);
+    printf("address is %s\n", address);
     // get the size of the decoded base 64 der signature
     if ((ret = wally_base64_get_maximum_length(sig_64, 0, &sig_len))) {
         printf("wally_base64_get_maximum_length failed with %d error code\n", ret);
         return ret;
     }
-
-    // printf("sig_len is %zu\n", sig_len);
 
     // get the compact signature
     if ((ret = wally_base64_to_bytes(sig_64, 0, sig, sig_len, &written))) {
@@ -788,22 +768,31 @@ int verifySignatureWithPubkey(const char *hash_hex, const char *sig_64) {
         return ret;
     }
 
-    // printBytesInHex(sig, sizeof(sig), "sig");
+    // get the formated message that was signed
+    if ((ret = wally_format_bitcoin_message((unsigned char *)string, strlen(string), BITCOIN_MESSAGE_FLAG_HASH, format, sizeof(format), &written))) {
+        printf("wally_format_bitcoin_message failed with %d error code\n", ret);
+        return ret;
+    }
 
-    // get hash in byte
-    if (!(buffer = convertHexToBytes(hash_hex, &written))) {
-        printf("convertHexToBytes failed\n");
+    // recover the pubkey from the signature
+    if ((ret = wally_ec_sig_to_public_key(format, sizeof(format), sig, sizeof(sig), pubkey, sizeof(pubkey)))) {
+        printf("wally_ec_sig_to_public_key failed with %d error code\n", ret);
+        return ret;
+    }
+
+    // get the address from the recovered pubkey
+    if (!(recoveredAddress = P2pkhFromPubkey(pubkey))) {
+        printf("P2pkhFromPubkey failed\n");
         return 1;
     }
 
-    memcpy(hash, buffer, sizeof(hash));
+    // compare the address and the over we just recovered from the signature
+    if ((ret = strncmp(address, recoveredAddress, strlen(address)))) {
+        printf("Invalid signature for this message\n");
+        return ret;
+    }
 
-    clearThenFree(buffer, written);
-
-    // verify signature
-    ret = wally_ec_sig_to_public_key(hash, sizeof(hash), sig, sizeof(sig), pubkey, sizeof(pubkey));
-
-    printBytesInHex(pubkey, sizeof(pubkey), "pubkey returned from wally_ec_sig_to_public_key");
+    clearThenFree(recoveredAddress, strlen(recoveredAddress));
 
     return ret;
 }

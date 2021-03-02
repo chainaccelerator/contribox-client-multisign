@@ -329,9 +329,9 @@ function signHash(xprv, hdPath, range, hash) {
   return JSON.stringify(Signature);
 }
 
-function verifySignature(message, signature) {
-  // verify the signature against the message and pubkey
-  ret = ccall('verifySignatureWithPubkey', 'number', ['string', 'string', 'string'], [message, signature]);
+function verifySignature(address, message, signature) {
+  // verify the signature against the message and an address
+  ret = ccall('verifySignatureWithAddress', 'number', ['string', 'string', 'string'], [address, message, signature]);
   // return true or false
   if (ret)
     return false;

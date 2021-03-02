@@ -295,3 +295,28 @@ unsigned char   *getWitnessProgram(const unsigned char *script, const size_t scr
 
     return program;
 }
+
+char    *P2pkhFromPubkey(const unsigned char *pubkey) {
+    unsigned char   p2pkhScript[WALLY_SCRIPTPUBKEY_P2PKH_LEN];
+    char            *address = NULL;
+    size_t          written;
+    int             ret = 1;
+
+    // get the scriptpubkey
+    if ((ret = wally_scriptpubkey_p2pkh_from_bytes(pubkey, EC_PUBLIC_KEY_LEN, WALLY_SCRIPT_HASH160, p2pkhScript, sizeof(p2pkhScript), &written))) {
+        printf("wally_scriptpubkey_p2pkh_from_bytes failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    printBytesInHex(p2pkhScript, sizeof(p2pkhScript), "p2pkh script");
+
+    // encode the scriptpubkey in a legacy address
+    if ((ret = wally_scriptpubkey_to_address(p2pkhScript, sizeof(p2pkhScript), WALLY_NETWORK_LIQUID_REGTEST, &address))) {
+        printf("wally_scriptpubkey_to_address failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    printf("address is %s\n", address);
+
+    return address;
+}

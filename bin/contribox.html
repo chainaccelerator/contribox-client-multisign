@@ -85,7 +85,7 @@
 
       console.log(signature);
 
-      signatureOK = verifySignature(contract_hash, "02953f48c8c8839149319d98f7d359b22eb2d0da9a6aa5e57e9b3a774c7b225381", JSON.parse(signature).derSignature);
+      signatureOK = verifySignature("2daQFL6hJYFoobEaVURBxPBFaBKMQYPAoa8", contract_hash, JSON.parse(signature).signature);
       console.log(signatureOK);
 
       let numberPubkeys = 3;

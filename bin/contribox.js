@@ -1950,7 +1950,7 @@ var _createMessageToSign = Module["_createMessageToSign"] = createExportWrapper(
 var _signHashWithKey = Module["_signHashWithKey"] = createExportWrapper("signHashWithKey");
 
 /** @type {function(...*):?} */
-var _verifySignatureWithPubkey = Module["_verifySignatureWithPubkey"] = createExportWrapper("verifySignatureWithPubkey");
+var _verifySignatureWithAddress = Module["_verifySignatureWithAddress"] = createExportWrapper("verifySignatureWithAddress");
 
 /** @type {function(...*):?} */
 var _signProposalTx = Module["_signProposalTx"] = createExportWrapper("signProposalTx");

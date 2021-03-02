@@ -89,6 +89,7 @@ unsigned char *getWitnessProgram(const unsigned char *script, const size_t scrip
 uint32_t *parseHdPath(const char *stringPath, size_t *path_len);
 struct ext_key *getChildFromXprv(const char *xprv, const uint32_t *hdPath, const size_t path_len);
 struct ext_key *getChildFromXpub(const char *xpub, const uint32_t *hdPath, const size_t path_len);
+char    *P2pkhFromPubkey(const unsigned char *pubkey);
 
 // issuance.c
 int getNewAssetID(const unsigned char *txID, const uint32_t vout, const unsigned char *reversed_contractHash, unsigned char *newAssetID);
