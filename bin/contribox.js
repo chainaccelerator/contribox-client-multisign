@@ -1884,10 +1884,10 @@ var asm = createWasm();
 var ___wasm_call_ctors = Module["___wasm_call_ctors"] = createExportWrapper("__wasm_call_ctors");
 
 /** @type {function(...*):?} */
-var _free = Module["_free"] = createExportWrapper("free");
+var _malloc = Module["_malloc"] = createExportWrapper("malloc");
 
 /** @type {function(...*):?} */
-var _malloc = Module["_malloc"] = createExportWrapper("malloc");
+var _free = Module["_free"] = createExportWrapper("free");
 
 /** @type {function(...*):?} */
 var _initializePRNG = Module["_initializePRNG"] = createExportWrapper("initializePRNG");
@@ -1911,16 +1911,13 @@ var _hdKeyFromSeed = Module["_hdKeyFromSeed"] = createExportWrapper("hdKeyFromSe
 var _xpubFromXprv = Module["_xpubFromXprv"] = createExportWrapper("xpubFromXprv");
 
 /** @type {function(...*):?} */
+var _pubkeyFromPrivkey = Module["_pubkeyFromPrivkey"] = createExportWrapper("pubkeyFromPrivkey");
+
+/** @type {function(...*):?} */
 var _encryptStringWithPubkey = Module["_encryptStringWithPubkey"] = createExportWrapper("encryptStringWithPubkey");
 
 /** @type {function(...*):?} */
 var _encryptStringWithPassword = Module["_encryptStringWithPassword"] = createExportWrapper("encryptStringWithPassword");
-
-/** @type {function(...*):?} */
-var _pubkeyFromPrivkey = Module["_pubkeyFromPrivkey"] = createExportWrapper("pubkeyFromPrivkey");
-
-/** @type {function(...*):?} */
-var _addressFromPrivkey = Module["_addressFromPrivkey"] = createExportWrapper("addressFromPrivkey");
 
 /** @type {function(...*):?} */
 var _getAddressFromScript = Module["_getAddressFromScript"] = createExportWrapper("getAddressFromScript");
@@ -1954,9 +1951,6 @@ var _verifySignatureWithAddress = Module["_verifySignatureWithAddress"] = create
 
 /** @type {function(...*):?} */
 var _signProposalTx = Module["_signProposalTx"] = createExportWrapper("signProposalTx");
-
-/** @type {function(...*):?} */
-var _txIsValid = Module["_txIsValid"] = createExportWrapper("txIsValid");
 
 /** @type {function(...*):?} */
 var _wally_free_string = Module["_wally_free_string"] = createExportWrapper("wally_free_string");

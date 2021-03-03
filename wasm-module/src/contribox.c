@@ -131,6 +131,33 @@ char *xpubFromXprv(const char *xprv) {
 }
 
 EMSCRIPTEN_KEEPALIVE
+char    *pubkeyFromPrivkey(const char *privkey_hex) {
+    unsigned char   pubkey[EC_PUBLIC_KEY_LEN];
+    unsigned char   privkey[EC_PRIVATE_KEY_LEN];
+    char            *pubkey_hex = NULL;
+    size_t          written;
+    int             ret;
+
+    if ((ret = wally_hex_to_bytes(privkey_hex, privkey, sizeof(privkey), &written)) != 0) {
+        printf("wally_hex_to_bytes failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    // get the public key
+    if ((ret = wally_ec_public_key_from_private_key(privkey, sizeof(privkey), pubkey, sizeof(pubkey)))) {
+        printf("wally_ec_public_key_from_private_key failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    if ((ret = wally_hex_from_bytes(pubkey, EC_PUBLIC_KEY_LEN, &pubkey_hex)) != 0) {
+        printf("wally_hex_from_bytes failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    return pubkey_hex;
+}
+
+EMSCRIPTEN_KEEPALIVE
 char *encryptStringWithPubkey(const char *pubkey_hex, const char *toEncrypt, unsigned char *ephemeralPrivkey) {
     unsigned char   *buffer = NULL;
     unsigned char   ephemeralPubkey[EC_PUBLIC_KEY_LEN];
@@ -139,6 +166,8 @@ char *encryptStringWithPubkey(const char *pubkey_hex, const char *toEncrypt, uns
     char            *encryptedFile = NULL;
     size_t          written;
     int             ret;
+
+    printf("string to encrypt is %s\n", toEncrypt);
 
     // verify that provided entropy is a valid private key
     if ((ret = wally_ec_private_key_verify(ephemeralPrivkey, EC_PRIVATE_KEY_LEN))) {
@@ -154,14 +183,10 @@ char *encryptStringWithPubkey(const char *pubkey_hex, const char *toEncrypt, uns
     }
 
     // convert the pubkey in bytes form
-    if (!(buffer = convertHexToBytes(pubkey_hex, &written))) {
-        printf("convertHexToBytes failed\n");
+    if ((ret = wally_hex_to_bytes(pubkey_hex, pubkey, sizeof(pubkey), &written)) != 0) {
+        printf("wally_hex_to_bytes failed with %d error code\n", ret);
         return NULL;
     }
-
-    memcpy(pubkey, buffer, written);
-
-    clearThenFree(buffer, written);
 
     if (written != EC_PUBLIC_KEY_LEN) {
         printf("Provided hex is not a valid public key, it's %zu long\n", written);
@@ -231,104 +256,36 @@ char    *encryptStringWithPassword(const char *userPassword, const char *toEncry
 }
 
 EMSCRIPTEN_KEEPALIVE
-char    *pubkeyFromPrivkey(const char *privkey_hex) {
-    unsigned char   *buffer = NULL;
-    unsigned char   privkey[EC_PRIVATE_KEY_LEN];
+char *getAddressFromScript(const char *script_hex, const size_t legacy) {
+    unsigned char   *script = NULL;
     unsigned char   pubkey[EC_PUBLIC_KEY_LEN];
-    char            *pubkey_hex = NULL;
-    size_t          written;
-    int             ret = 1;
-
-    // get the signing key in bytes form
-    if (!(buffer = convertHexToBytes(privkey_hex, &written))) {
-        printf("convertHexToBytes failed\n");
-        return NULL;
-    }
-
-    memcpy(privkey, buffer, sizeof(privkey));
-
-    clearThenFree(buffer, written);
-
-    if ((ret = wally_ec_public_key_from_private_key(privkey, EC_PRIVATE_KEY_LEN, pubkey, EC_PUBLIC_KEY_LEN))) {
-        printf("wally_ec_public_key_from_private_key failed with %d error code\n", ret);
-        return NULL;
-    }
-
-    if ((ret = wally_hex_from_bytes(pubkey, sizeof(pubkey), &pubkey_hex)) != 0) {
-        printf("wally_hex_from_bytes failed with %d error code\n", ret);
-        return NULL;
-    }
-
-    return pubkey_hex;
-}
-
-EMSCRIPTEN_KEEPALIVE
-char    *addressFromPrivkey(const char *privkey_hex) {
-    unsigned char   *buffer = NULL;
-    unsigned char   privkey[EC_PRIVATE_KEY_LEN];
-    char            *wif = NULL;
     char            *address = NULL;
-    size_t          written;
-    int             ret = 1;
-
-    // get the signing key in bytes form
-    if (!(buffer = convertHexToBytes(privkey_hex, &written))) {
-        printf("convertHexToBytes failed\n");
-        return NULL;
-    }
-
-    memcpy(privkey, buffer, sizeof(privkey));
-
-    clearThenFree(buffer, written);
-
-    // get the wif format
-    if ((ret = wally_wif_from_bytes(privkey, EC_PRIVATE_KEY_LEN, WALLY_ADDRESS_VERSION_WIF_TESTNET, WALLY_WIF_FLAG_COMPRESSED, &wif))) {
-        printf("wally_wif_from_bytes failed with %d error code\n", ret);
-        return NULL;
-    }
-
-    // get the legacy address from wif
-    if ((ret = wally_wif_to_address(wif, WALLY_ADDRESS_VERSION_WIF_TESTNET, WALLY_ADDRESS_VERSION_P2PKH_LIQUID_REGTEST, &address))) {
-        printf("wally_wif_to_address failed with %d error code\n", ret);
-    }
-
-    return address;
-}
-
-EMSCRIPTEN_KEEPALIVE
-char *getAddressFromScript(const char *script_hex) {
-    unsigned char *script = NULL;
-    unsigned char *program = NULL;
-    char *address = NULL;
-    size_t script_len;
-    int ret;
-    int isP2WSH;
+    size_t          script_len;
+    int             ret;
 
     // convert script pubkey to bytes
     if (!(script = convertHexToBytes(script_hex, &script_len))) {
         printf("convertHexToBytes failed\n");
-        goto cleanup;
+        return NULL;
     }
 
-    // get the program from the script
-    if (!(program = getWitnessProgram(script, script_len, &isP2WSH))) {
-        printf("getWitnessProgram failed\n");
-        goto cleanup;
+    // if legacy is true and the provided script is not a public key, we abort as we don't support P2SH yet
+    if (legacy && (script_len != EC_PUBLIC_KEY_LEN)) {
+        printf("P2SH is not supported\n");
+        clearThenFree(script, script_len);
+        return NULL;
     }
 
-    // create the unconfidential address from program
-    if ((ret = wally_addr_segwit_from_bytes(program, isP2WSH ? WALLY_SCRIPTPUBKEY_P2WSH_LEN : WALLY_SCRIPTPUBKEY_P2WPKH_LEN, 
-                                            UNCONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST, 
-                                            0, 
-                                            &address)) != 0) {
-        printf("wally_addr_segwit_from_bytes failed with %d error code\n", ret);
+    if (legacy) {
+        memcpy(pubkey, script, script_len);
+        clearThenFree(script, script_len);
+        return getP2pkhFromPubkey(pubkey);
     }
-
-cleanup:
-    clearThenFree(program, isP2WSH ? WALLY_SCRIPTPUBKEY_P2WSH_LEN : WALLY_SCRIPTPUBKEY_P2WPKH_LEN);
-    clearThenFree(script, script_len);
-
-    return address;
+    else {
+        address = getSegwitAddressFromScript(script, script_len);
+        clearThenFree(script, script_len);
+        return address;
+    }
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -356,8 +313,6 @@ char *getPrivkeyFromXprv(const char *xprv, const char *path, const size_t range)
     }
 
     memcpy(privkey, (child->priv_key) + 1, EC_PRIVATE_KEY_LEN); // we skip the first byte which is a '\0' flag
-
-    // printBytesInHex(privkey, sizeof(privkey), "privkey");
 
     bip32_key_free(child);
     free(hdPath);
@@ -696,51 +651,43 @@ char    *createMessageToSign(const char *string) {
 
 EMSCRIPTEN_KEEPALIVE
 char    *signHashWithKey(const char *signingKey_hex, const char *hash_hex) {
-    unsigned char   *temp = NULL;
     unsigned char   signingKey[EC_PRIVATE_KEY_LEN];
     unsigned char   toSign[EC_MESSAGE_HASH_LEN];
-    unsigned char   derSig[EC_SIGNATURE_DER_MAX_LEN];
-    char            *derSig_64 = NULL;
+    unsigned char   sig[EC_SIGNATURE_DER_MAX_LEN];
+    char            *sig_64 = NULL;
     size_t          written;
     int             ret = 1;
 
-    // get the bytes from the hex
-    if (!(temp = convertHexToBytes(hash_hex, &written))) {
-        printf("convertHexToBytes failed\n");
+    // check that the hash we got is of the right length
+    if (strlen(hash_hex) != EC_MESSAGE_HASH_LEN * 2) {
+        printf("provided hash hex must be %d\n", EC_MESSAGE_HASH_LEN * 2);
         return NULL;
     }
 
-    // check that the byte array we got is of the right length
-    if (written != EC_MESSAGE_HASH_LEN) {
-        printf("provided hash hex must be %d, not %zu\n", EC_MESSAGE_HASH_LEN * 2, written * 2);
-        clearThenFree(temp, written);
+    if ((ret = wally_hex_to_bytes(hash_hex, toSign, sizeof(toSign), &written)) != 0) {
+        printf("wally_hex_to_bytes failed with %d error code\n", ret);
         return NULL;
     }
-
-    memcpy(toSign, temp, written);
-    clearThenFree(temp, written);
 
     // get the bytes of signing key
-    if (!(temp = convertHexToBytes(signingKey_hex, &written))) {
-        printf("convertHexToBytes failed\n");
+    if ((ret = wally_hex_to_bytes(signingKey_hex, signingKey, sizeof(signingKey), &written)) != 0) {
+        printf("wally_hex_to_bytes failed with %d error code\n", ret);
         return NULL;
     }
-    memcpy(signingKey, temp, written);
-    clearThenFree(temp, written);
 
     // sign the hash with the provided key
-    if (signMessageECDSA(signingKey, toSign, derSig, &written)) {
+    if (signMessageECDSA(signingKey, toSign, sig, &written)) {
         printf("signMessageECDSA failed\n");
         return NULL;
     }
 
     // convert the der signature to hex string 
-    if ((ret = wally_base64_from_bytes(derSig, written, 0, &derSig_64)) != 0) {
+    if ((ret = wally_base64_from_bytes(sig, written, 0, &sig_64)) != 0) {
         printf("wally_hex_from_bytes failed with %d error code\n", ret);
         return NULL;
     }
 
-    return derSig_64;
+    return sig_64;
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -753,9 +700,6 @@ int verifySignatureWithAddress(const char *address, const char *string, const ch
     size_t          written;
     int             ret = 1;
 
-    printf("provided signature in base64 is %s\n", sig_64);
-    printf("message being verified is %s\n", string);
-    printf("address is %s\n", address);
     // get the size of the decoded base 64 der signature
     if ((ret = wally_base64_get_maximum_length(sig_64, 0, &sig_len))) {
         printf("wally_base64_get_maximum_length failed with %d error code\n", ret);
@@ -781,7 +725,7 @@ int verifySignatureWithAddress(const char *address, const char *string, const ch
     }
 
     // get the address from the recovered pubkey
-    if (!(recoveredAddress = P2pkhFromPubkey(pubkey))) {
+    if (!(recoveredAddress = getP2pkhFromPubkey(pubkey))) {
         printf("P2pkhFromPubkey failed\n");
         return 1;
     }
@@ -799,7 +743,6 @@ int verifySignatureWithAddress(const char *address, const char *string, const ch
 
 EMSCRIPTEN_KEEPALIVE
 char    *signProposalTx(const char *unsignedTx, const char *signingKey_hex) {
-    unsigned char                   *buffer = NULL;
     char                            *signedTx = NULL; 
     struct wally_tx                 *tempTx = NULL; 
     unsigned char                   signingKey[EC_PRIVATE_KEY_LEN];
@@ -819,24 +762,20 @@ char    *signProposalTx(const char *unsignedTx, const char *signingKey_hex) {
     }
 
     // get the signing key in bytes form
-    if (!(buffer = convertHexToBytes(signingKey_hex, &written))) {
-        printf("convertHexToBytes failed\n");
+    if ((ret = wally_hex_to_bytes(signingKey_hex, signingKey, sizeof(signingKey), &written)) != 0) {
+        printf("wally_hex_to_bytes failed with %d error code\n", ret);
         return NULL;
     }
 
-    memcpy(signingKey, buffer, sizeof(signingKey));
-
-    clearThenFree(buffer, written);
-
     // we need the scriptCode, which is basically the script that will be executed, to compute the scriptHash that will be signed
     // first the pubkey
-    if ((ret = wally_ec_public_key_from_private_key(signingKey, EC_PRIVATE_KEY_LEN, pubkey, EC_PUBLIC_KEY_LEN)) != 0) {
+    if ((ret = wally_ec_public_key_from_private_key(signingKey, sizeof(signingKey), pubkey, sizeof(pubkey))) != 0) {
         printf("wally_ec_public_key_from_private_key failed with %d error code\n", ret);
         goto cleanup;
     }
 
     // construct the Script, here a standard P2PKH
-    if ((ret = wally_scriptpubkey_p2pkh_from_bytes(pubkey, EC_PUBLIC_KEY_LEN, WALLY_SCRIPT_HASH160, scriptCode, WALLY_SCRIPTPUBKEY_P2PKH_LEN, &written)) != 0) {
+    if ((ret = wally_scriptpubkey_p2pkh_from_bytes(pubkey, sizeof(pubkey), WALLY_SCRIPT_HASH160, scriptCode, sizeof(scriptCode), &written)) != 0) {
         printf("wally_scriptpubkey_p2pkh_from_bytes failed with %d error code\n", ret);
         goto cleanup;
     }
@@ -868,7 +807,7 @@ char    *signProposalTx(const char *unsignedTx, const char *signingKey_hex) {
     }
 
     if ((ret = wally_tx_witness_stack_add(witnessStack, derSig, written + 1)) ||
-        (ret = wally_tx_witness_stack_add(witnessStack, pubkey, EC_PUBLIC_KEY_LEN))) {
+        (ret = wally_tx_witness_stack_add(witnessStack, pubkey, sizeof(pubkey)))) {
         printf("wally_tx_witness_stack_add failed with %d error code\n", ret);
         goto cleanup;
     }
@@ -885,19 +824,7 @@ char    *signProposalTx(const char *unsignedTx, const char *signingKey_hex) {
 
 cleanup:
     wally_tx_witness_stack_free(witnessStack);
+    wally_tx_free(tempTx);
 
     return signedTx;
-}
-
-EMSCRIPTEN_KEEPALIVE
-int txIsValid(const char *tx_hex) {
-    int ret = 1;
-    struct wally_tx *prev_tx;
-
-    // convert hex tx to struct
-    if ((ret = wally_tx_from_hex(tx_hex, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &prev_tx)) != 0) {
-        printf("wally_tx_from_hex failed with %d error code\n", ret);
-    }
-
-    return ret;
 }

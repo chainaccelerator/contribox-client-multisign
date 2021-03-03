@@ -160,9 +160,31 @@ function restoreWallet(mnemonic) {
   return generateWallet(mnemonic);
 }
 
-function getAddressFromPubkey(pubkey) {
+function getWitnessAddressFromPubkey(pubkey) {
+  let legacy = 0;
   // get the unconfidential address
-  if ((address_ptr = ccall('getAddressFromScript', 'number', ['string'], [pubkey])) === 0) {
+  if ((address_ptr = ccall('getAddressFromScript', 'number', ['string', 'number'], [pubkey, legacy])) === 0) {
+    console.error("getAddressFromScript failed");
+    return "";
+  }
+
+  if ((address = convertToString(address_ptr, "address")) === "") {
+    return "";
+  }
+
+  let addressInfo = {
+    "unconfidentialAddress": address,
+    "pubkey": pubkey
+  }
+
+  return JSON.stringify(addressInfo);
+}
+
+function getP2pkhAddressFromPubkey(pubkey) {
+  let legacy = 1;
+
+  // get the unconfidential address
+  if ((address_ptr = ccall('getAddressFromScript', 'number', ['string', 'number'], [pubkey, legacy])) === 0) {
     console.error("getAddressFromScript failed");
     return "";
   }
@@ -189,7 +211,7 @@ function newAddressFromXpub(xpub, hdPath, range) {
     return "";
   }
 
-  return getAddressFromPubkey(pubkey);
+  return getWitnessAddressFromPubkey(pubkey);
 }
 
 function newAddressFromXprv(xprv, hdPath, range) {
@@ -202,7 +224,7 @@ function newAddressFromXprv(xprv, hdPath, range) {
     return "";
   }
 
-  return getAddressFromPubkey(pubkey);
+  return getWitnessAddressFromPubkey(pubkey);
 }
 
 function createIssueAssetTx(previousTx, contractHash, assetAddress, changeAddress) {
@@ -228,7 +250,7 @@ function signIssueAssetTx(unsignedTx, address, wallet) {
   let signingKey;
 
   // find the right key 
-  if ((signingKey_ptr = ccall('getSigningKey', 'number', ['string', 'string', 'string', 'number'], [wallet.xprv, address, wallet.hdPath, wallet.range])) === 0) {
+  if ((signingKey_ptr = ccall('getSigningKey', 'number', ['string', 'string', 'string', 'number'], [wallet.xprv, address, wallet.hdPath, 100])) === 0) {
     console.error("getSigningKey failed");
     return "";
   }
@@ -264,9 +286,8 @@ function signHash(xprv, hdPath, range, hash) {
   console.log("message to sign is " + hash);
 
   // get the pubkey
-  if ((pubkey_ptr = ccall('getPubkeyFromXprv', 'number', ['string', 'string', 'number'], [xprv, hdPath, range])) === 0) {
-    console.error("getPubkeyFromXprv failed");
-    return "";
+  if ((pubkey_ptr = ccall('pubkeyFromPrivkey', 'number', ['string'], [signingKey])) === 0) {
+    console.error("pubkeyFromPrivkey failed");
   }
 
   if ((pubkey = convertToString(pubkey_ptr, "pubkey")) === "") {
@@ -276,14 +297,11 @@ function signHash(xprv, hdPath, range, hash) {
   console.log("corresponding pubkey is " + pubkey);
 
   // get the address corresponding to this private key
-  if ((address_ptr = ccall('addressFromPrivkey', 'number', ['string'], [signingKey])) === 0) {
-    console.error("getAddressFromPrivkey failed");
-  }
-
-  if ((address = convertToString(address_ptr, "address")) === "") {
+  if ((address = JSON.parse(getP2pkhAddressFromPubkey(pubkey))) === "") {
+    console.error("getP2pkhAddressFromPubkey failed");
     return "";
   }
-  console.log("address is " + address);
+  console.log("address is " + address.unconfidentialAddress);
 
   // format the message to be signed
   if ((message_ptr = ccall('createMessageToSign', 'number', ['string'], [hash])) === 0) {
@@ -303,7 +321,7 @@ function signHash(xprv, hdPath, range, hash) {
     return "";
   }
 
-  if ((signature = convertToString(signature_ptr, "signature")) === "") {
+  if ((signature = convertToString(signature_ptr, "derSignature")) === "") {
     return "";
   }
 
@@ -322,7 +340,7 @@ function signHash(xprv, hdPath, range, hash) {
     "xpub": xpub,
     "hdPath": hdPath,
     "range": range,
-    "pubkey": pubkey,
+    "address": address.unconfidentialAddress, // FIXME for testing purpose, providing an address without mean for the recipient to derive it might be an attack vector
     "signature": signature
   }
 
@@ -330,7 +348,7 @@ function signHash(xprv, hdPath, range, hash) {
 }
 
 function verifySignature(address, message, signature) {
-  // verify the signature against the message and an address
+  // verify the signature against the message and pubkey
   ret = ccall('verifySignatureWithAddress', 'number', ['string', 'string', 'string'], [address, message, signature]);
   // return true or false
   if (ret)

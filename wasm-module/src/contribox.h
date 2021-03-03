@@ -85,11 +85,14 @@ void printBytesInHex(const unsigned char *toPrint, const size_t len, const char 
 
 /** this can be useful when we need to print out values that are usually printed in reverse by bitcoin/elements */
 void printBytesInHexReversed(const unsigned char *toPrint, const size_t len, const char *label);
-unsigned char *getWitnessProgram(const unsigned char *script, const size_t script_len, int *isP2WSH);
 uint32_t *parseHdPath(const char *stringPath, size_t *path_len);
 struct ext_key *getChildFromXprv(const char *xprv, const uint32_t *hdPath, const size_t path_len);
 struct ext_key *getChildFromXpub(const char *xpub, const uint32_t *hdPath, const size_t path_len);
-char    *P2pkhFromPubkey(const unsigned char *pubkey);
+
+// script.c
+unsigned char   *getWitnessProgram(const unsigned char *script, const size_t script_len, int *isP2WSH);
+char            *getSegwitAddressFromScript(const unsigned char *script, const size_t script_len);
+char            *getP2pkhFromPubkey(const unsigned char *pubkey);
 
 // issuance.c
 int getNewAssetID(const unsigned char *txID, const uint32_t vout, const unsigned char *reversed_contractHash, unsigned char *newAssetID);

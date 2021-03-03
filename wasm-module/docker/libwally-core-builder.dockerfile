@@ -60,6 +60,7 @@ RUN ${SOURCE_EMSDK} && emcc \
     -s "EXTRA_EXPORTED_RUNTIME_METHODS=$EXTRA_EXPORTED_RUNTIME_METHODS" \
     -s "EXPORTED_FUNCTIONS=$EXPORTED_FUNCTIONS" \
     -D BUILD_ELEMENTS=1 \
+    src/script.c \
     src/crypto.c \
     src/signature.c \
     src/issuance.c \
