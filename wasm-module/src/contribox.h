@@ -58,9 +58,9 @@ struct txInfo {
 };
 
 // util.c
-void clearThenFree(void *p, size_t len);
-void freeTxInfo(struct txInfo **initialInput);
-struct txInfo *initTxInfo();
+void            clearThenFree(void *p, size_t len);
+void            freeTxInfo(struct txInfo **initialInput);
+struct txInfo   *initTxInfo();
 
 /** Fill an array of array_len size with random bytes
 *   THIS IS NOT CRYPTOGRAPHICALLY SECURE, we use the rand() function
@@ -68,26 +68,26 @@ struct txInfo *initTxInfo();
 *   We use the browser PRNG for seed generation.
 *   FIXME: either use the PRNG of the browser (a bit cumbersome), or add another dependency (libsodium?) with a proper PRNG.
 **/
-void getRandomBytes(unsigned char *array, const size_t array_len);
+void            getRandomBytes(unsigned char *array, const size_t array_len);
 
 /*  allocate and return a new byte string that contains the same byte sequence in reverse order
 bitcoin and elements do love to reverse bytes sequence like hashes
 BE CAREFUL */
-void *reverseBytes(const unsigned char *bytes, const size_t bytes_len);
+void            *reverseBytes(const unsigned char *bytes, const size_t bytes_len);
 
-unsigned char *convertHexToBytes(const char *hexstring, size_t *bytes_len);
+unsigned char   *convertHexToBytes(const char *hexstring, size_t *bytes_len);
 
 /** This is useful if we need to input some data that are usually printed out in reverse order by bitcoin/elements
 *   like usually are the txid, asset id, and other hashes.
 **/
-unsigned char *reversedBytesFromHex(const char *hexString, size_t *bytes_len);
-void printBytesInHex(const unsigned char *toPrint, const size_t len, const char *label);
+unsigned char   *reversedBytesFromHex(const char *hexString, size_t *bytes_len);
+void            printBytesInHex(const unsigned char *toPrint, const size_t len, const char *label);
 
 /** this can be useful when we need to print out values that are usually printed in reverse by bitcoin/elements */
-void printBytesInHexReversed(const unsigned char *toPrint, const size_t len, const char *label);
-uint32_t *parseHdPath(const char *stringPath, size_t *path_len);
-struct ext_key *getChildFromXprv(const char *xprv, const uint32_t *hdPath, const size_t path_len);
-struct ext_key *getChildFromXpub(const char *xpub, const uint32_t *hdPath, const size_t path_len);
+void            printBytesInHexReversed(const unsigned char *toPrint, const size_t len, const char *label);
+uint32_t        *parseHdPath(const char *stringPath, size_t *path_len);
+struct ext_key  *getChildFromXprv(const char *xprv, const uint32_t *hdPath, const size_t path_len);
+struct ext_key  *getChildFromXpub(const char *xpub, const uint32_t *hdPath, const size_t path_len);
 
 // script.c
 unsigned char   *getWitnessProgram(const unsigned char *script, const size_t script_len, int *isP2WSH);
@@ -110,5 +110,6 @@ int signTransactionECDSA(const unsigned char *signingKey, const unsigned char *t
 
 // crypto.c
 unsigned char   *encryptWithAes(const char *toEncrypt, const unsigned char *key, size_t *cipher_len);
+char            *decryptWithAes(const char *toDecrypt, const unsigned char *key);
 
 #endif /*CONTRIBOX_H*/

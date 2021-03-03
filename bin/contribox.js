@@ -1914,6 +1914,12 @@ var _xpubFromXprv = Module["_xpubFromXprv"] = createExportWrapper("xpubFromXprv"
 var _pubkeyFromPrivkey = Module["_pubkeyFromPrivkey"] = createExportWrapper("pubkeyFromPrivkey");
 
 /** @type {function(...*):?} */
+var _decryptStringWithPassword = Module["_decryptStringWithPassword"] = createExportWrapper("decryptStringWithPassword");
+
+/** @type {function(...*):?} */
+var _decryptStringWithPrivkey = Module["_decryptStringWithPrivkey"] = createExportWrapper("decryptStringWithPrivkey");
+
+/** @type {function(...*):?} */
 var _encryptStringWithPubkey = Module["_encryptStringWithPubkey"] = createExportWrapper("encryptStringWithPubkey");
 
 /** @type {function(...*):?} */
@@ -1936,6 +1942,9 @@ var _getAddressFromXpub = Module["_getAddressFromXpub"] = createExportWrapper("g
 
 /** @type {function(...*):?} */
 var _createTransactionWithNewAsset = Module["_createTransactionWithNewAsset"] = createExportWrapper("createTransactionWithNewAsset");
+
+/** @type {function(...*):?} */
+var _getDecryptingKey = Module["_getDecryptingKey"] = createExportWrapper("getDecryptingKey");
 
 /** @type {function(...*):?} */
 var _getSigningKey = Module["_getSigningKey"] = createExportWrapper("getSigningKey");

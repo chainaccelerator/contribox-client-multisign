@@ -356,44 +356,72 @@ function verifySignature(address, message, signature) {
   return true;
 }
 
-function encryptHashWithPubkeys(message, pubkeys) {
-  let cipher_list = [];
+function encryptMessageWithPubkey(message, xpub, hdPath, range) {
+  // derive a pubkey in the provided path and range
+  if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'string', 'number'], [xpub, hdPath, range])) === 0) {
+    console.error("getPubkeyFromXpub failed");
+    return "";
+  }
+  
+  if ((pubkey = convertToString(pubkey_ptr, "pubkey")) === "") {
+    return "";
+  }
 
-  for (var i = 0; i < pubkeys.length; i++) {
-    var xpub = pubkeys[i].xpub;
-    var hdPath = pubkeys[i].hdPath;
-    var range = pubkeys[i].range;
-    
-    // derive a pubkey in the provided path and range
-    if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'string', 'number'], [xpub, hdPath, range])) === 0) {
-      console.error("getPubkeyFromXpub failed");
-      return cipher_list = [];
-    }
-    
-    if ((pubkey = convertToString(pubkey_ptr, "pubkey")) === "") {
-      return cipher_list = [];
-    }
+  // generate a new ephemeral private key 
+  var ephemeralPrivkey = new Uint8Array(32); // BIP39_ENTROPY_LEN_256
+  window.crypto.getRandomValues(ephemeralPrivkey);
 
-    // generate a new ephemeral private key 
-    let ephemeralPrivkey = new Uint8Array(32); // BIP39_ENTROPY_LEN_256
-    window.crypto.getRandomValues(ephemeralPrivkey);
+  // get the ephemeral pubkey
+  if ((ephemeralPubkey_ptr = ccall('pubkeyFromPrivkey', 'number', ['string'], [toHexString(ephemeralPrivkey)])) === 0) {
+    console.error("Failed to get the ephemeral public key");
+    return "";
+  }
 
-    // encrypt the proof with the pubkey
-    if ((encryptedProof_ptr = ccall('encryptStringWithPubkey', 'number', ['string', 'string', 'array'], [pubkey, message, ephemeralPrivkey])) === 0) {
-      console.error("encryptProofWithPubkey failed");
-      return cipher_list = [];
-    }
+  if ((ephemeralPubkey = convertToString(ephemeralPubkey_ptr, "ephemeralPubkey")) === "") {
+    return "";
+  }
 
-    if ((encryptedProof = convertToString(encryptedProof_ptr, "encryptedProof")) === "") {
-      return cipher_list = [];
-    }
+  // encrypt the proof with the pubkey
+  if ((encryptedMessage_ptr = ccall('encryptStringWithPubkey', 'number', ['string', 'string', 'array'], [pubkey, message, ephemeralPrivkey])) === 0) {
+    console.error("encryptProofWithPubkey failed");
+    return "";
+  }
 
-    var newItem = {
-      "encryptedProof": encryptedProof,
-      "xpub": xpub,
-    }
-    cipher_list.push(newItem);
-  }  
+  if ((encryptedMessage = convertToString(encryptedMessage_ptr, "encryptedProof")) === "") {
+    return "";
+  }
 
-  return JSON.stringify(cipher_list);
+  var newCipher = {
+    "encryptedMessage": encryptedMessage,
+    "xpub": xpub,
+    "hdPath": hdPath,
+    "range": range,
+    "pubkey": pubkey,
+    "senderPubkey": ephemeralPubkey
+  }
+
+  return JSON.stringify(newCipher);
+}
+
+function decryptMessage(encryptedMessage, xprv, hdPath, range, pubkey, senderPubkey) {
+  // derive the decrypting key
+  if ((decryptingKey_ptr = ccall('getDecryptingKey', 'number', ['string', 'string', 'string', 'number'], [xprv, pubkey, hdPath, range])) === 0) {
+    console.error("getDecryptingKey failed");
+    return "";
+  }
+
+  if ((decryptingKey = convertToString(decryptingKey_ptr, "decryptingKey")) === "") {
+    return "";
+  }
+
+  // decrypt the message with the key
+  if ((clearMessage_ptr = ccall('decryptStringWithPrivkey', 'number', ['string', 'string', 'string'], [encryptedMessage, decryptingKey, senderPubkey])) === 0) {
+    console.error("decryptStringWithPrivkey failed");
+  }
+
+  if ((clearMessage = convertToString(clearMessage_ptr, "clearMessage")) === "") {
+    return "";
+  }
+
+  return clearMessage;
 }

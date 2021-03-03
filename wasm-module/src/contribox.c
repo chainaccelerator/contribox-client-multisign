@@ -158,6 +158,71 @@ char    *pubkeyFromPrivkey(const char *privkey_hex) {
 }
 
 EMSCRIPTEN_KEEPALIVE
+char *decryptStringWithPassword(const char *encryptedString, const char *userPassword) {
+    unsigned char   key[PBKDF2_HMAC_SHA256_LEN];
+    char            *clearMessage = NULL;
+    int             ret;
+
+    // get the key from the password
+    if ((ret = wally_pbkdf2_hmac_sha256(
+                            (unsigned char*)userPassword, 
+                            strlen(userPassword), 
+                            NULL, 
+                            (size_t)0,
+                            0,
+                            16384,
+                            key, 
+                            PBKDF2_HMAC_SHA256_LEN)) != 0) {
+        printf("wally_pbkdf2_hmac_sha256 failed with %d\n", ret);
+        return NULL;
+    };
+
+    if (!(clearMessage = decryptWithAes(encryptedString, key))) {
+        printf("decryptWithAes failed\n");
+    }
+
+    memset(key, '\0', sizeof(key));
+
+    return clearMessage;
+}
+
+EMSCRIPTEN_KEEPALIVE
+char    *decryptStringWithPrivkey(const char *encryptedString, const char *privkey_hex, const char *ephemeralPubkey_hex) {
+    unsigned char   privkey[EC_PRIVATE_KEY_LEN];
+    unsigned char   ephemeralPubkey[EC_PUBLIC_KEY_LEN];
+    unsigned char   key[PBKDF2_HMAC_SHA256_LEN];
+    char            *clearMessage = NULL;
+    int             ret = 1;
+    size_t          written;
+
+    // get privkey in bytes
+    if ((ret = wally_hex_to_bytes(privkey_hex, privkey, sizeof(privkey), &written)) != 0) {
+        printf("wally_hex_to_bytes failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    // get pubkey in bytes
+    if ((ret = wally_hex_to_bytes(ephemeralPubkey_hex, ephemeralPubkey, sizeof(ephemeralPubkey), &written)) != 0) {
+        printf("wally_hex_to_bytes failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    // get the shared secret with ECDH
+    if ((ret = wally_ecdh(ephemeralPubkey, sizeof(ephemeralPubkey), privkey, sizeof(privkey), key, sizeof(key)))) {
+        printf("wally_ecdh failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    if (!(clearMessage = decryptWithAes(encryptedString, key))) {
+        printf("decryptWithAes failed\n");
+    }
+
+    memset(key, '\0', sizeof(key));
+
+    return clearMessage;
+}
+
+EMSCRIPTEN_KEEPALIVE
 char *encryptStringWithPubkey(const char *pubkey_hex, const char *toEncrypt, unsigned char *ephemeralPrivkey) {
     unsigned char   *buffer = NULL;
     unsigned char   ephemeralPubkey[EC_PUBLIC_KEY_LEN];
@@ -166,8 +231,6 @@ char *encryptStringWithPubkey(const char *pubkey_hex, const char *toEncrypt, uns
     char            *encryptedFile = NULL;
     size_t          written;
     int             ret;
-
-    printf("string to encrypt is %s\n", toEncrypt);
 
     // verify that provided entropy is a valid private key
     if ((ret = wally_ec_private_key_verify(ephemeralPrivkey, EC_PRIVATE_KEY_LEN))) {
@@ -292,7 +355,6 @@ EMSCRIPTEN_KEEPALIVE
 char *getPrivkeyFromXprv(const char *xprv, const char *path, const size_t range) {
     struct ext_key *child;
     char *privkey_hex;
-    char    *wif;
     unsigned char privkey[EC_PRIVATE_KEY_LEN];
     uint32_t    *hdPath;
     size_t      path_len;
@@ -342,7 +404,7 @@ char *getPubkeyFromXpub(const char *xpub, const char *path, const size_t range) 
     }
 
     if (range > 0) {
-        hdPath[path_len - 1] = (uint32_t)(rand() % range);
+        hdPath[path_len - 1] = (uint32_t)((rand() % range) + hdPath[path_len - 1]);
     } 
 
     if ((child = getChildFromXpub(xpub, hdPath, path_len)) == NULL) {
@@ -552,14 +614,70 @@ cleanup:
 }
 
 EMSCRIPTEN_KEEPALIVE
+char    *getDecryptingKey(const char *xprv, const char *pubkey_hex, const char *path, const size_t range) {
+    unsigned char   pubkey[EC_PUBLIC_KEY_LEN];
+    uint32_t        *hdPath = NULL;
+    size_t          path_len = 0;
+    struct ext_key  *childKey = NULL;
+    char            *decryptingKey_hex = NULL;
+    size_t          limit = 0;
+    int             ret = 1;
+    size_t          written;
+
+    // convert the pubkey in bytes form
+    if ((ret = wally_hex_to_bytes(pubkey_hex, pubkey, sizeof(pubkey), &written)) != 0) {
+        printf("wally_hex_to_bytes failed with %d error code\n", ret);
+        return NULL;
+    }
+
+    if ((hdPath = parseHdPath(path, &path_len)) == NULL) {
+        printf("parseHdPath failed\n");
+        return NULL;
+    }
+
+    limit = hdPath[path_len - 1] + range;
+
+    for (size_t i = hdPath[path_len - 1]; i < limit; i++) {
+        // free childKey, if necessary
+        if (childKey)
+            bip32_key_free(childKey);
+
+        // update the last index in path
+        hdPath[path_len - 1] = i;
+
+        // get the child key from xprv
+        childKey = getChildFromXprv(xprv, hdPath, path_len);
+        if (!childKey) {
+            printf("getChildFromXprv failed\n");
+            break;
+        }
+
+        // compare the pubkeys, if they're the same, then we return the private key
+        if (!memcmp(childKey->pub_key, pubkey, sizeof(pubkey))) {
+            if ((ret = wally_hex_from_bytes(childKey->priv_key + 1, EC_PRIVATE_KEY_LEN, &decryptingKey_hex)) != 0) {
+                printf("wally_hex_from_bytes failed with %d error code\n", ret);
+            }
+            break;
+        } else {
+            continue;
+        }
+    }
+
+    if (childKey)
+        bip32_key_free(childKey);
+    free(hdPath);
+
+    return decryptingKey_hex;
+}
+
+EMSCRIPTEN_KEEPALIVE
 char    *getSigningKey(const char *xprv, const char *address, const char *path, const size_t range) {
-    unsigned char   scriptPubkey[WALLY_SCRIPTPUBKEY_P2WPKH_LEN]; // we take the risk of a stack overflow here, but maybe it's okay since the function will fail immediately anyway 
+    unsigned char   scriptPubkey[WALLY_SCRIPTPUBKEY_P2WPKH_LEN];
     unsigned char   keyHash[HASH160_LEN];
-    uint32_t        *hdPath;
-    size_t          path_len;
+    uint32_t        *hdPath = NULL;
+    size_t          path_len = 0;
     struct ext_key  *childKey = NULL;
     unsigned char   candidateHash[HASH160_LEN];
-    char            *wif;
     char            *signingKey_hex = NULL;
     size_t          limit = 0;
     int             ret = 1;
@@ -607,7 +725,7 @@ char    *getSigningKey(const char *xprv, const char *address, const char *path, 
         childKey = getChildFromXprv(xprv, hdPath, path_len);
         if (!childKey) {
             printf("getChildFromXprv failed\n");
-            return NULL;
+            break;
         }
 
         // hash the candidate pubkey
@@ -624,7 +742,9 @@ char    *getSigningKey(const char *xprv, const char *address, const char *path, 
         }
     }
 
-    bip32_key_free(childKey);
+    if (childKey)
+        bip32_key_free(childKey);
+    free(hdPath);
 
     return signingKey_hex;
 }
