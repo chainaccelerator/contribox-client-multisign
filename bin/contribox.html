@@ -124,8 +124,6 @@
         var senderPubkey = temp.senderPubkey;
         var xprv = Wallets[i].xprv;
 
-        console.log("Cipher is " + JSON.stringify(temp));
-
         var clearMessage = decryptMessage(encryptedMessage, xprv, path, range, pubkey, senderPubkey);
         console.log("clear message is " + clearMessage);
       }
