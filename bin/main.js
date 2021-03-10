@@ -356,17 +356,7 @@ function verifySignature(address, message, signature) {
   return true;
 }
 
-function encryptMessageWithPubkey(message, xpub, hdPath, range) {
-  // derive a pubkey in the provided path and range
-  if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'string', 'number'], [xpub, hdPath, range])) === 0) {
-    console.error("getPubkeyFromXpub failed");
-    return "";
-  }
-  
-  if ((pubkey = convertToString(pubkey_ptr, "pubkey")) === "") {
-    return "";
-  }
-
+function encryptMessageWithPubkey(message, pubkey) {
   // generate a new ephemeral private key 
   var ephemeralPrivkey = new Uint8Array(32); // BIP39_ENTROPY_LEN_256
   window.crypto.getRandomValues(ephemeralPrivkey);
@@ -393,12 +383,29 @@ function encryptMessageWithPubkey(message, xpub, hdPath, range) {
 
   var newCipher = {
     "encryptedMessage": encryptedMessage,
-    "xpub": xpub,
-    "hdPath": hdPath,
-    "range": range,
     "pubkey": pubkey,
     "senderPubkey": ephemeralPubkey
   }
+
+  return JSON.stringify(newCipher);
+}
+
+function encryptMessageWithXpub(message, xpub, hdPath, range) {
+  // derive a pubkey in the provided path and range
+  if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'string', 'number'], [xpub, hdPath, range])) === 0) {
+    console.error("getPubkeyFromXpub failed");
+    return "";
+  }
+  
+  if ((pubkey = convertToString(pubkey_ptr, "pubkey")) === "") {
+    return "";
+  }
+
+  newCipher = JSON.parse(encryptMessageWithPubkey(message, pubkey));
+
+  newCipher["xpub"] = xpub;
+  newCipher["hdPath"] = hdPath;
+  newCipher["range"] = range;
 
   return JSON.stringify(newCipher);
 }

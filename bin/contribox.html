@@ -106,7 +106,7 @@
 
       let Ciphers = [];
       for (i = 0; i < numberToEncrypt; i++) {
-        cipher = JSON.parse(encryptMessageWithPubkey(stringToEncrypt, Wallets[i].xprv, Wallets[i].hdPath, 10000));
+        cipher = JSON.parse(encryptMessageWithXpub(stringToEncrypt, Wallets[i].xprv, Wallets[i].hdPath, 100));
 
         Ciphers.push(cipher);
       }
