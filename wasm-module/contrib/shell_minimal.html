@@ -95,6 +95,12 @@
 
       console.log(newTx);
 
+      // sign the multisig input
+      signature1 = signReleaseTx(newTx, mineAddress.pubkey, script, restored.xprv, "0/0", 0);
+      console.log("signature1 is " + signature1);
+      signature2 = signReleaseTx(newTx, theirAddress.pubkey, script, restored.xprv, "1/0", 0);
+      console.log("signature2 is " + signature2);
+
       // sign an arbitrary hash with a key derived from our xprv
       stringToEncrypt = "It is notable that the response to each public tragedy or threat in modern America seems to involve a call for citizens to surrender more of their rights.";
       signature = signHash(restored.xprv, "0/0", 0, stringToEncrypt);

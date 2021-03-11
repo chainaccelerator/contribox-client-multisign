@@ -282,6 +282,34 @@ function signIssueAssetTx(unsignedTx, address, xprv, hdPath, range) {
   return signedTx;
 }
 
+function signReleaseTx(unsignedTx, pubkey, script, xprv, hdPath, range) {
+  /** contrary to signIssueAssetTx, we don't return the signed Tx, but the DER encoded signature.
+   * We'll need another step to put together all the signatures in a witness.
+  **/
+
+  // find the right key for the given pubkey
+  if ((signingKey_ptr = ccall('getDecryptingKey', 'number', ['string', 'string', 'string', 'number'], [xprv, pubkey, hdPath, range])) === 0) {
+    console.error("getDecryptingKey failed");
+    return "";
+  }
+
+  if ((signingKey = convertToString(signingKey_ptr, "signingKey")) === "") {
+    return "";
+  }
+
+  // produce a signature
+  if ((signature_ptr = ccall('signReleaseTx', 'number', ['string', 'string', 'string'], [unsignedTx, signingKey, script])) === 0) {
+    console.error("signReleaseTx failed");
+    return "";
+  }
+
+  if ((signature = convertToString(signature_ptr, "signature")) === "") {
+    return "";
+  }
+
+  return signature;
+}
+
 function signHash(xprv, hdPath, range, hash) {
   // first get a signing key 
   if ((signingKey_ptr = ccall('getPrivkeyFromXprv', 'number', ['string', 'string', 'number'], [xprv, hdPath, range])) === 0) {

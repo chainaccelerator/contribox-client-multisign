@@ -83,7 +83,7 @@ unsigned char *convertHexToBytes(const char *hexstring, size_t *bytes_len) {
     }
 
     if ((ret = wally_hex_to_bytes(hexstring, bytes, *bytes_len, &written)) != 0) {
-        printf("wally_hex_to_bytes failed with %d error code\n", ret);
+        fprintf(stderr, "wally_hex_to_bytes failed with %d error code\n", ret);
         free(bytes);
         return NULL;
     }

@@ -713,13 +713,10 @@ char    *getDecryptingKey(const char *xprv, const char *pubkey_hex, const char *
 
     limit = hdPath[path_len - 1] + range;
 
-    for (size_t i = hdPath[path_len - 1]; i < limit; i++) {
+    do {
         // free childKey, if necessary
         if (childKey)
             bip32_key_free(childKey);
-
-        // update the last index in path
-        hdPath[path_len - 1] = i;
 
         // get the child key from xprv
         childKey = getChildFromXprv(xprv, hdPath, path_len);
@@ -727,6 +724,9 @@ char    *getDecryptingKey(const char *xprv, const char *pubkey_hex, const char *
             printf("getChildFromXprv failed\n");
             break;
         }
+
+        // update the last index in path
+        hdPath[path_len - 1]++;
 
         // compare the pubkeys, if they're the same, then we return the private key
         if (!memcmp(childKey->pub_key, pubkey, sizeof(pubkey))) {
@@ -737,7 +737,7 @@ char    *getDecryptingKey(const char *xprv, const char *pubkey_hex, const char *
         } else {
             continue;
         }
-    }
+    } while (hdPath[path_len - 1] < limit);
 
     if (childKey)
         bip32_key_free(childKey);
@@ -902,7 +902,7 @@ char    *signHashWithKey(const char *signingKey_hex, const char *hash_hex) {
 
     // convert the der signature to hex string 
     if ((ret = wally_base64_from_bytes(sig, written, 0, &sig_64)) != 0) {
-        printf("wally_hex_from_bytes failed with %d error code\n", ret);
+        printf("wally_base64_from_bytes failed with %d error code\n", ret);
         return NULL;
     }
 
@@ -1046,4 +1046,66 @@ cleanup:
     wally_tx_free(tempTx);
 
     return signedTx;
+}
+
+EMSCRIPTEN_KEEPALIVE
+char    *signReleaseTx(const char *unsignedTx, const char *signingKey_hex, const char *witnessScript_hex) {
+    char                            *signedTx = NULL; 
+    struct wally_tx                 *tempTx = NULL; 
+    unsigned char                   signingKey[EC_PRIVATE_KEY_LEN];
+    unsigned char                   *witnessScript = NULL;
+    size_t                          witnessScript_len;
+    unsigned char                   sighash[SHA256_LEN];
+    unsigned char                   derSig[EC_SIGNATURE_DER_MAX_LOW_R_LEN + 1]; // we need one byte for SIGHASH
+    char                            *derSig_hex = NULL;
+    size_t                          written = 0;
+    int                             ret = 1;
+
+    // convert hex tx to struct
+    if ((ret = wally_tx_from_hex(unsignedTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &tempTx)) != 0) {
+        fprintf(stderr, "wally_tx_from_hex failed with %d error code\n", ret);
+        goto cleanup;
+    }
+
+    // get the signing key in bytes form
+    if ((ret = wally_hex_to_bytes(signingKey_hex, signingKey, sizeof(signingKey), &written)) != 0) {
+        fprintf(stderr, "wally_hex_to_bytes failed with %d error code\n", ret);
+        goto cleanup;
+    }
+
+    // get the witness script in bytes
+    if (!(witnessScript = convertHexToBytes(witnessScript_hex, &witnessScript_len))) {
+        fprintf(stderr, "convertHexToBytes failed\n");
+        goto cleanup;
+    }
+
+    // now we can produce the sighash
+    if ((ret = wally_tx_get_elements_signature_hash(tempTx, 
+                                                    0, // index that we are signing. Will always be 0 for now
+                                                    witnessScript, witnessScript_len,
+                                                    tempTx->outputs[0].value, tempTx->outputs[0].value_len, // we know that output 0 is the sender paying himself back, so we can get the amount spent from here (will be 1 most of the time)
+                                                    WALLY_SIGHASH_ALL,
+                                                    WALLY_TX_FLAG_USE_WITNESS,
+                                                    sighash, SHA256_LEN))) {
+        fprintf(stderr, "wally_tx_get_elements_signature_hash failed with %d error code\n", ret);
+        goto cleanup;
+    }
+
+    // and finally create the signature
+    if ((signTransactionECDSA(signingKey, sighash, derSig, &written))) {
+        fprintf(stderr, "signTransactionECDSA failed\n");
+        goto cleanup;
+    }
+
+    derSig[written] = WALLY_SIGHASH_ALL; // we add the sighash byte after the der signature
+
+    if ((ret = wally_hex_from_bytes(derSig, written, &derSig_hex))) {
+        fprintf(stderr, "wally_hex_from_bytes failed with %d error code\n", ret);
+    }
+
+cleanup:
+    wally_tx_free(tempTx);
+    clearThenFree(witnessScript, witnessScript_len);
+
+    return derSig_hex;
 }

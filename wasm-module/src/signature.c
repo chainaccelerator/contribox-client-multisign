@@ -15,7 +15,6 @@ static int  signHashECDSA(const unsigned char *signingKey, const unsigned char *
 
     if (!(flags & EC_FLAG_RECOVERABLE)) {
         // convert the signature to DER only if we're signing a transaction (non recoverable signature)
-        printf("encoding signature to hex\n");
         if ((ret = wally_ec_sig_to_der(sig, EC_SIGNATURE_LEN, signature, EC_SIGNATURE_DER_MAX_LEN, sig_len)) != 0) {
             printf("wally_ec_sig_to_der failed with %d error code\n", ret);
             return ret;
@@ -28,10 +27,10 @@ static int  signHashECDSA(const unsigned char *signingKey, const unsigned char *
     return ret;
 }
 
-int signMessageECDSA(const unsigned char *signingKey, const unsigned char *toSign, unsigned char *derSig, size_t *written) {
+int signMessageECDSA(const unsigned char *signingKey, const unsigned char *toSign, unsigned char *signature, size_t *written) {
     uint32_t flags = EC_FLAG_ECDSA | EC_FLAG_RECOVERABLE;
 
-    return signHashECDSA(signingKey, toSign, flags, derSig, written);
+    return signHashECDSA(signingKey, toSign, flags, signature, written);
 }
 
 int verifyMessageECDSA(const unsigned char *pubkey, const unsigned char *hash, const unsigned char *sig) {
@@ -44,8 +43,8 @@ int verifyMessageECDSA(const unsigned char *pubkey, const unsigned char *hash, c
     return ret;
 }
 
-int signTransactionECDSA(const unsigned char *signingKey, const unsigned char *toSign, unsigned char *derSig, size_t *written) {
+int signTransactionECDSA(const unsigned char *signingKey, const unsigned char *toSign, unsigned char *signature, size_t *written) {
     uint32_t flags = EC_FLAG_ECDSA | EC_FLAG_GRIND_R;
 
-    return signHashECDSA(signingKey, toSign, flags, derSig, written);
+    return signHashECDSA(signingKey, toSign, flags, signature, written);
 }
