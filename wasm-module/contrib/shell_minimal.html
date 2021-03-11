@@ -56,12 +56,12 @@
       console.log("pubkey is " + firstAddress.pubkey)
       // derive an address from the xpub
       var path = "0/0";
-      mineAddress = JSON.parse(newAddressFromXprv(restored.xprv, path, restored.range));
+      mineAddress = JSON.parse(newAddressFromXprv(restored.xprv, path, 0));
       // console.log("address is " + mineAddress.unconfidentialAddress);
       console.log("pubkey is " + mineAddress.pubkey)
 
       var path = "1/0";
-      theirAddress = JSON.parse(newAddressFromXpub(restored.xpub, path, restored.range));
+      theirAddress = JSON.parse(newAddressFromXpub(restored.xpub, path, 0));
       // console.log("address is " + theirAddress.unconfidentialAddress);
       console.log("pubkey is " + theirAddress.pubkey)
 

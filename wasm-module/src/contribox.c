@@ -366,7 +366,7 @@ char *getPrivkeyFromXprv(const char *xprv, const char *path, const size_t range)
     }
 
     if (range > 0) {
-        hdPath[path_len - 1] = (uint32_t)(rand() % range);
+        hdPath[path_len - 1] = (uint32_t)((rand() % range) + hdPath[path_len - 1]);
     } 
 
     if ((child = getChildFromXprv(xprv, hdPath, path_len)) == NULL) {
@@ -477,7 +477,7 @@ char *getAddressFromXpub(const char *xpub, const char *path, const size_t range)
     }
 
     if (range > 0) {
-        hdPath[path_len - 1] = (uint32_t)(rand() % range);
+        hdPath[path_len - 1] = (uint32_t)((rand() % range) + hdPath[path_len - 1]);
     } 
 
     if ((child = getChildFromXpub(xpub, hdPath, path_len)) == NULL) {
