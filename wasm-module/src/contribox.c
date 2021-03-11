@@ -441,7 +441,7 @@ char *getPubkeyFromXprv(const char *xprv, const char *path, const size_t range) 
     }
 
     if (range > 0) {
-        hdPath[path_len - 1] = (uint32_t)(rand() % range);
+        hdPath[path_len - 1] = (uint32_t)((rand() % range) + hdPath[path_len - 1]);
     } 
 
     if ((child = getChildFromXprv(xprv, hdPath, path_len)) == NULL) {
@@ -521,7 +521,7 @@ char *createUnconfidentialTransactionWithNewAsset(struct txInfo *initialInput, c
     }
 
     // add the new asset output to the tx
-    if ((ret = addOutputToTx(newTx, assetAddress, IS_P2WPKH, ISSUANCE_ASSET_AMT, newAsset)) != 0) {
+    if ((ret = addOutputToTx(newTx, assetAddress, !IS_P2WPKH, ISSUANCE_ASSET_AMT, newAsset)) != 0) {
         printf("addOutputToTx failed for new asset output\n");
         goto cleanup;
     }
@@ -686,31 +686,53 @@ char    *getSigningKey(const char *xprv, const char *address, const char *path, 
     // get the hash of the pubkey we're looking for from the address
     if (!(strncmp(address, CONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST, 2))) { // address is confidential
         // TODO: extract the unconfidential address from confidential address instead of letting the user do the job
-        printf("Provided address is confidential, need an unconfidential address\n");
+        fprintf(stderr, "Provided address is confidential, need an unconfidential address\n");
         return NULL;
-    } else {
+    } else if (!(strncmp(address, UNCONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST, 3))) { // address is unconfidential bech32
         // get the script pubkey corresponding to the address
         ret = wally_addr_segwit_to_bytes(address, UNCONFIDENTIAL_ADDRESS_ELEMENTS_REGTEST, 0, scriptPubkey, sizeof(scriptPubkey), &written);
         if (ret != 0) {
-            printf("wally_addr_segwit_to_bytes failed with %d error code\n", ret);
+            fprintf(stderr, "wally_addr_segwit_to_bytes failed with %d error code\n", ret);
             return NULL;
         }
 
         if (written != WALLY_SCRIPTPUBKEY_P2WPKH_LEN) {
-            printf("Provided address is not P2WPKH, scriptPubkey length is %zu\nShould be %d\n", written,WALLY_SCRIPTPUBKEY_P2WPKH_LEN);
+            fprintf(stderr, "Provided address is not P2WPKH, scriptPubkey length is %zu\nShould be %d\n", written,WALLY_SCRIPTPUBKEY_P2WPKH_LEN);
             return NULL;
         }
 
         // get the hash of the key from the scriptPubkey
         memcpy(keyHash, scriptPubkey + 2, HASH160_LEN); // skip the segwit version + varint byte
         printBytesInHex(keyHash, HASH160_LEN, "keyHash");
-    }
-
-    if ((hdPath = parseHdPath(path, &path_len)) == NULL) {
-        printf("parseHdPath failed\n");
+    } else {
+        fprintf(stderr, "Provided address is not a bech32 address, only segwit native addresses are accepted\n");
         return NULL;
     }
 
+    if ((hdPath = parseHdPath(path, &path_len)) == NULL) {
+        fprintf(stderr, "parseHdPath failed\n");
+        return NULL;
+    }
+
+    if (range == 0) { // if range is 0, then we directly derive the provided path
+        childKey = getChildFromXprv(xprv, hdPath, path_len);
+
+        if (!childKey) {
+            fprintf(stderr, "getChildFromXprv failed\n");
+        } else {
+            // hash the pubkey
+            wally_hash160(childKey->pub_key, EC_PUBLIC_KEY_LEN, candidateHash, HASH160_LEN);
+
+            // compare the pubkeys, if they're the same, then the privkey is the signing key we're returning
+            if (!memcmp(candidateHash, keyHash, HASH160_LEN)) {
+                if ((ret = wally_hex_from_bytes(childKey->priv_key + 1, EC_PRIVATE_KEY_LEN, &signingKey_hex)) != 0) {
+                    fprintf(stderr, "wally_hex_from_bytes failed with %d error code\n", ret);
+                }
+            } else {
+                fprintf(stderr, "provided path doesn't match the provided address\n");
+            }
+        }
+    } else {
     limit = hdPath[path_len - 1] + range;
 
     for (size_t i = hdPath[path_len - 1]; i < limit; i++) {
@@ -724,7 +746,7 @@ char    *getSigningKey(const char *xprv, const char *address, const char *path, 
         // get the child key from xprv
         childKey = getChildFromXprv(xprv, hdPath, path_len);
         if (!childKey) {
-            printf("getChildFromXprv failed\n");
+                fprintf(stderr, "getChildFromXprv failed\n");
             break;
         }
 
@@ -734,12 +756,13 @@ char    *getSigningKey(const char *xprv, const char *address, const char *path, 
         // compare the pubkeys, if they're the same, then the privkey is the signing key we're returning
         if (!memcmp(candidateHash, keyHash, HASH160_LEN)) {
             if ((ret = wally_hex_from_bytes(childKey->priv_key + 1, EC_PRIVATE_KEY_LEN, &signingKey_hex)) != 0) {
-                printf("wally_hex_from_bytes failed with %d error code\n", ret);
+                    fprintf(stderr, "wally_hex_from_bytes failed with %d error code\n", ret);
             }
             break;
         } else {
             continue;
         }
+    }
     }
 
     if (childKey)

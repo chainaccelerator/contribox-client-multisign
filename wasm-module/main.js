@@ -243,14 +243,14 @@ function createIssueAssetTx(previousTx, contractHash, assetAddress, changeAddres
   return newTx;
 }
 
-function signIssueAssetTx(unsignedTx, address, wallet) {
+function signIssueAssetTx(unsignedTx, address, xprv, hdPath, range) {
   let signedTx_ptr;
   let signedTx;
   let signingKey_ptr;
   let signingKey;
 
   // find the right key 
-  if ((signingKey_ptr = ccall('getSigningKey', 'number', ['string', 'string', 'string', 'number'], [wallet.xprv, address, wallet.hdPath, 100])) === 0) {
+  if ((signingKey_ptr = ccall('getSigningKey', 'number', ['string', 'string', 'string', 'number'], [xprv, address, hdPath, range])) === 0) {
     console.error("getSigningKey failed");
     return "";
   }
