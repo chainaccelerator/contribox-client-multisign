@@ -228,11 +228,21 @@ function newAddressFromXprv(xprv, hdPath, range) {
 }
 
 function createIssueAssetTx(previousTx, contractHash, assetAddress, changeAddress) {
-  let newTx; 
-
-  // call createTransactionWithNewAsset
   if ((newTx_ptr = ccall('createTransactionWithNewAsset', 'number', ['string', 'string', 'string', 'string'], [previousTx, contractHash, assetAddress, changeAddress])) === 0) {
     console.error("createTransactionWithNewAsset failed");
+    return "";
+  }
+
+  if ((newTx = convertToString(newTx_ptr, "newTx")) === "") {
+    return "";
+  }
+
+  return newTx;
+}
+
+function createReleaseAssetTx(previousTx, address) {
+  if ((newTx_ptr = ccall('createReleaseTransaction', 'number', ['string', 'string'], [previousTx, address])) === 0) {
+    console.error("createReleaseTransaction failed");
     return "";
   }
 

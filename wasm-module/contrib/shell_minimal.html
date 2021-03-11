@@ -89,6 +89,12 @@
 
       console.log(signedTx);
 
+      // create another tx that spend the multisig
+      releaseAddress = "ert1qrw4q5s4sa6ugc53yx4fjhh7hjru6ggvf3agt3k";
+      newTx = createReleaseAssetTx(signedTx, releaseAddress);
+
+      console.log(newTx);
+
       // sign an arbitrary hash with a key derived from our xprv
       stringToEncrypt = "It is notable that the response to each public tragedy or threat in modern America seems to involve a call for citizens to surrender more of their rights.";
       signature = signHash(restored.xprv, "0/0", 0, stringToEncrypt);

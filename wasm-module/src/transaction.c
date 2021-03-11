@@ -50,7 +50,7 @@ cleanup:
     return ret;
 }
 
-int addInputToTx(struct wally_tx *tx, const unsigned char *prevTxID, const unsigned char *contractHash) {
+int addIssuanceInputToTx(struct wally_tx *tx, const unsigned char *prevTxID, const unsigned char *contractHash) {
     unsigned char value[WALLY_TX_ASSET_CT_VALUE_UNBLIND_LEN];
     int ret = 1;
 
@@ -77,7 +77,33 @@ int addInputToTx(struct wally_tx *tx, const unsigned char *prevTxID, const unsig
                                             0); // flag, must be 0
 
     if (ret != 0) {
-        printf("wally_tx_add_elements_raw_input failed with %d error code\n", ret);
+        fprintf(stderr, "wally_tx_add_elements_raw_input failed with %d error code\n", ret);
+    }
+
+    return ret;
+}
+
+int addInputToTx(struct wally_tx *tx, const unsigned char *prevTxID) {
+    int ret = 1;
+
+    // add the input to the transaction
+    ret = wally_tx_add_elements_raw_input(tx,
+                                            prevTxID, WALLY_TXHASH_LEN,
+                                            (uint32_t)1,
+                                            INPUT_DEACTIVATE_SEQUENCE, // sequence must be set at 0xffffffff if not used
+                                            NULL, 0, // scriptSig and its length
+                                            NULL, // witness stack
+                                            NULL, 0, // issuance has an empty nonce
+                                            NULL, 0, // the contract hash provided in input, only reversed
+                                            NULL, 0, // explicit (unblinded) value
+                                            NULL, 0, // blinded token amount, this should be 0
+                                            NULL, 0, // issuance rangeproof
+                                            NULL, 0, // token rangeproof, since we don't have a token output we can just forget it for now
+                                            NULL, // peginWitness, this should be NULL for non pegin transaction
+                                            0); // flag, must be 0
+
+    if (ret != 0) {
+        fprintf(stderr, "wally_tx_add_elements_raw_input failed with %d error code\n", ret);
     }
 
     return ret;

@@ -527,7 +527,7 @@ char *createUnconfidentialTransactionWithNewAsset(struct txInfo *initialInput, c
     }
 
     // add the input including the unblinded issuance
-    if ((ret = addInputToTx(newTx, initialInput->prevTxID, reversed_contractHash)) != 0) {
+    if ((ret = addIssuanceInputToTx(newTx, initialInput->prevTxID, reversed_contractHash)) != 0) {
         printf("addInputToTx failed for input\n");
         goto cleanup;
     }
@@ -543,19 +543,95 @@ cleanup:
     return newTx_hex;
 }
 
+char    *createUnconfidentialTransaction(struct txInfo *initialInput, const char *address) {
+    struct wally_tx *newTx = NULL;
+    char            *newTx_hex = NULL;
+    int             ret = 1;
+    size_t          written;
+
+    // create a new empty transaction and fill it
+    wally_tx_init_alloc(2, 0, 0, 0, &newTx);
+
+    // add the change output to the tx
+    if ((ret = addOutputToTx(newTx, address, IS_P2WPKH, initialInput->satoshi, initialInput->clearAsset))) {
+        fprintf(stderr, "addOutputToTx failed for change output\n");
+        goto cleanup;
+    }
+
+    // add the input
+    if ((ret = addInputToTx(newTx, initialInput->prevTxID))) {
+        fprintf(stderr, "addInputToTx failed for input\n");
+        goto cleanup;
+    }
+
+    // get the tx in hex form
+    if ((ret = wally_tx_to_hex(newTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS | WALLY_TX_FLAG_ALLOW_PARTIAL, &newTx_hex)) != 0) {
+        fprintf(stderr, "wally_tx_to_hex failed with %d error code\n", ret);
+    }
+
+cleanup:
+    wally_tx_free(newTx);
+
+    return newTx_hex;
+}
+
+EMSCRIPTEN_KEEPALIVE
+char    *createReleaseTransaction(const char *prevTx_hex, const char *address) {
+    struct wally_tx *prevTx = NULL;
+    struct wally_tx *newTx = NULL;
+    char            *newTx_hex = NULL;
+    struct txInfo   *spentUTXOInput = NULL;
+    int             ret = 1;
+    size_t          written;
+
+    // convert hex prevTx to struct
+    if ((ret = wally_tx_from_hex(prevTx_hex, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &prevTx)) != 0) {
+        printf("wally_tx_from_hex failed with %d error code\n", ret);
+        goto cleanup;
+    }
+
+    if (!(spentUTXOInput = initTxInfo())) {
+        printf("Failed to initialize txInfo struct\n");
+        goto cleanup; 
+    }
+
+    memcpy(spentUTXOInput->clearValue, prevTx->outputs[1].value, prevTx->outputs[1].value_len); // len must be 9 for unblinded value
+    if ((ret = wally_tx_confidential_value_to_satoshi(spentUTXOInput->clearValue, WALLY_TX_ASSET_CT_VALUE_UNBLIND_LEN, &(spentUTXOInput->satoshi))) != 0) {
+        printf("wally_tx_confidential_value_to_satoshi failed with %d error\n", ret);
+        goto cleanup;
+    }
+
+    memcpy(spentUTXOInput->clearAsset, prevTx->outputs[1].asset, prevTx->outputs[1].asset_len);
+
+    spentUTXOInput->isInput = 1; // Since this will be our transaction's input, set isInput to 1
+
+    // get previous txid
+    if ((ret = wally_tx_get_txid(prevTx, spentUTXOInput->prevTxID, WALLY_TXHASH_LEN))) {
+        printf("wally_tx_get_txid failed with %d error code\n", ret);
+        goto cleanup;
+    }
+
+    newTx_hex = createUnconfidentialTransaction(spentUTXOInput, address);
+
+cleanup:
+    freeTxInfo(&spentUTXOInput);
+    wally_tx_free(prevTx);
+
+    return newTx_hex;
+}
 
 EMSCRIPTEN_KEEPALIVE
 char *createTransactionWithNewAsset(const char *prevTx_hex, const char *contractHash_hex, const char *assetAddress, const char *changeAddress) {
-    size_t key_len;
+    size_t          key_len;
     struct wally_tx *prevTx;
-    struct txInfo *spentUTXOInput = NULL;
+    struct txInfo   *spentUTXOInput = NULL;
     struct wally_tx *newTx = NULL;
-    char *newTx_hex = NULL;
-    unsigned char newAssetID[SHA256_LEN];
-    unsigned char *reversed_contractHash = NULL;
-    size_t contractHash_len;
-    int ret = 1;
-    size_t written;
+    char            *newTx_hex = NULL;
+    unsigned char   newAssetID[SHA256_LEN];
+    unsigned char   *reversed_contractHash = NULL;
+    size_t          contractHash_len;
+    int             ret = 1;
+    size_t          written;
 
     printf("assetAddress is %s\n", assetAddress);
 

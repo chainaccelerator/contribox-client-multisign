@@ -100,7 +100,8 @@ int addIssuanceInput(struct wally_tx *newTx, struct txInfo *initialInput, const 
 
 // transaction.c
 int addOutputToTx(struct wally_tx *tx, const char *address, const size_t isP2WSH, const size_t amount, const unsigned char *asset);
-int addInputToTx(struct wally_tx *tx, const unsigned char *prevTxID, const unsigned char *contractHash);
+int addIssuanceInputToTx(struct wally_tx *tx, const unsigned char *prevTxID, const unsigned char *contractHash);
+int addInputToTx(struct wally_tx *tx, const unsigned char *prevTxID);
 
 // signature.c
 /** sign a message which must be a sha256 hash (32B long) with provided key **/
