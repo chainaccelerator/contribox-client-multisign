@@ -310,6 +310,23 @@ function signReleaseTx(unsignedTx, pubkey, script, xprv, hdPath, range) {
   return signature;
 }
 
+function combineSignaturesInTx(unsignedTx, signatures, script) {
+  /** A string with all signatures encoded in DER format and space separated is expected for signatures
+   * We return the Tx with a witness that includes all provided signatures, but we can't check that the script is satisfied.
+   * Returned Tx could pretty much be invalid for a lot of reasons.
+  */
+  if ((signedTx_ptr = ccall('combineMultisigSignatures', 'number', ['string', 'string', 'string'], [unsignedTx, signatures, script])) === 0) {
+    console.error("combineMultisigSignatures failed");
+    return "";
+  }
+
+  if ((signedTx = convertToString(signedTx_ptr, "signedTx")) === "") {
+    return "";
+  }
+
+  return signedTx;
+}
+
 function signHash(xprv, hdPath, range, hash) {
   // first get a signing key 
   if ((signingKey_ptr = ccall('getPrivkeyFromXprv', 'number', ['string', 'string', 'number'], [xprv, hdPath, range])) === 0) {
@@ -411,7 +428,7 @@ function encryptMessageWithPubkey(message, pubkey) {
 
   // encrypt the proof with the pubkey
   if ((encryptedMessage_ptr = ccall('encryptStringWithPubkey', 'number', ['string', 'string', 'array'], [pubkey, message, ephemeralPrivkey])) === 0) {
-    console.error("encryptProofWithPubkey failed");
+    console.error("encryptStringWithPubkey failed");
     return "";
   }
 

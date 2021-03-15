@@ -86,6 +86,7 @@ void            printBytesInHex(const unsigned char *toPrint, const size_t len, 
 /** this can be useful when we need to print out values that are usually printed in reverse by bitcoin/elements */
 void            printBytesInHexReversed(const unsigned char *toPrint, const size_t len, const char *label);
 uint32_t        *parseHdPath(const char *stringPath, size_t *path_len);
+unsigned char   *parseSignaturesList(const char *signatures_list, size_t *signatures_len);
 struct ext_key  *getChildFromXprv(const char *xprv, const uint32_t *hdPath, const size_t path_len);
 struct ext_key  *getChildFromXpub(const char *xpub, const uint32_t *hdPath, const size_t path_len);
 

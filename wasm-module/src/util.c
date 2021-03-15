@@ -78,7 +78,7 @@ unsigned char *convertHexToBytes(const char *hexstring, size_t *bytes_len) {
 
     *bytes_len = strlen(hexstring) / 2;
     if (!(bytes = malloc(*bytes_len))) {
-        printf(MEMORY_ERROR);
+        fprintf(stderr, MEMORY_ERROR);
         return NULL;
     }
 
@@ -202,6 +202,68 @@ cleanup:
     clearThenFree(saveptr, strlen(saveptr));
 
     return hdPath;
+}
+
+unsigned char    *parseSignaturesList(const char *signatures_list, size_t *signatures_len) {
+    unsigned char   *signatures = NULL;
+    unsigned char   compactSignature[EC_SIGNATURE_LEN];
+    unsigned char   *buffer = NULL;
+    char            *list_copy = NULL;
+    char            *saveptr = NULL;
+    char            *der = NULL;
+    int             ret = 1;
+    size_t          counter = 0;
+    size_t          written;
+
+    if (!signatures_list) {
+        fprintf(stderr, "Empty string to parseSignaturesList\n");
+        return NULL;
+    }
+
+    // copy the string
+    if (!(list_copy = strndup(signatures_list, strlen(signatures_list)))) {
+        fprintf(stderr, "Failed to strndup the list\n");
+        return NULL;
+    }
+
+    saveptr = list_copy;
+
+    // count the number of signatures
+    *signatures_len = sizeof(compactSignature); // we start at 1 since we're supposed to have at least 1 element
+    while (*list_copy) {
+        if (*list_copy == ' ') {
+            (*signatures_len) += sizeof(compactSignature);
+        }
+        list_copy++;
+    }
+
+    // reset the list_copy ptr to its initial position
+    list_copy = saveptr;
+
+    // allocate signatures 
+    if (!(signatures = calloc(*signatures_len, sizeof(*signatures)))) {
+        fprintf(stderr, MEMORY_ERROR);
+        goto cleanup;
+    }
+
+    // split the string
+    while ((der = strtok_r(list_copy, " ", &list_copy))) {
+        buffer = convertHexToBytes(der, &written);
+        if ((ret = wally_ec_sig_from_der(buffer, written - 1, compactSignature, sizeof(compactSignature)))) {
+            fprintf(stderr, "wally_ec_sig_from_der failed with %d error code\n", ret);
+            goto cleanup;
+        }
+        memcpy(signatures + (counter * sizeof(compactSignature)), compactSignature, sizeof(compactSignature));
+
+        clearThenFree(buffer, written);
+        clearThenFree(der, strlen(der));
+        counter++;
+    }
+
+cleanup:
+    clearThenFree(saveptr, strlen(saveptr));
+
+    return signatures;
 }
 
 struct ext_key *getChildFromXprv(const char *xprv, const uint32_t *hdPath, const size_t path_len) {

@@ -1097,7 +1097,7 @@ char    *signReleaseTx(const char *unsignedTx, const char *signingKey_hex, const
         goto cleanup;
     }
 
-    derSig[written] = WALLY_SIGHASH_ALL; // we add the sighash byte after the der signature
+    derSig[written++] = WALLY_SIGHASH_ALL; // we add the sighash byte after the der signature
 
     if ((ret = wally_hex_from_bytes(derSig, written, &derSig_hex))) {
         fprintf(stderr, "wally_hex_from_bytes failed with %d error code\n", ret);
@@ -1108,4 +1108,74 @@ cleanup:
     clearThenFree(witnessScript, witnessScript_len);
 
     return derSig_hex;
+}
+
+EMSCRIPTEN_KEEPALIVE
+char    *combineMultisigSignatures(const char *unsignedTx, const char *signatures_list, const char *scriptWitness_hex) {
+    struct wally_tx                 *tempTx = NULL;
+    char                            *signedTx = NULL;
+    unsigned char                   *signatures = NULL;
+    size_t                          signatures_len = 0;
+    unsigned char                   *scriptWitness = NULL;
+    size_t                          scriptWitness_len = 0;
+    uint32_t                        *sighash = NULL;
+    size_t                          sighash_len = 0;
+    struct wally_tx_witness_stack   *witness = NULL;
+    int                             ret = 1;
+    size_t                          written;
+
+    // parse the signatures list string to extract compact signatures and the sighash
+    if (!(signatures = parseSignaturesList(signatures_list, &signatures_len))) {
+        fprintf(stderr, "parseSignaturesList failed\n");
+        return NULL;
+    }
+
+    // extract the script witness in byte format
+    if (!(scriptWitness = convertHexToBytes(scriptWitness_hex, &scriptWitness_len))) {
+        fprintf(stderr, "convertHexToBytes failed\n");
+        goto cleanup;
+    }
+    
+    // allocate the sighash array and set it all to SIGHASH_ALL
+    // FIXME: it would be better to read the sighash from the signature, but it's unconvenient and we're only making SIGHASH_ALL anyway
+    sighash_len = signatures_len / EC_SIGNATURE_LEN;
+    if (!(sighash = calloc(sighash_len, sizeof(*sighash)))) {
+        fprintf(stderr, MEMORY_ERROR);
+        goto cleanup;
+    }
+
+    for (size_t i = 0; i < sighash_len; i++)
+        sighash[i] = (uint32_t)WALLY_SIGHASH_ALL;
+
+    // create the witness
+    if ((ret = wally_witness_multisig_from_bytes(scriptWitness, scriptWitness_len, signatures, signatures_len, sighash, sighash_len, 0, &witness))) {
+        fprintf(stderr, "wally_witness_multisig_from_bytes failed with %d error code\n", ret);
+        goto cleanup;
+    }
+
+    // extract the unsigned tx
+    if ((ret = wally_tx_from_hex(unsignedTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &tempTx)) != 0) {
+        fprintf(stderr, "wally_tx_from_hex failed with %d error code\n", ret);
+        goto cleanup;
+    }
+
+    // add witness to tx
+    if ((ret = wally_tx_set_input_witness(tempTx, 0, witness))) {
+        fprintf(stderr, "wally_tx_set_input_witness failed with %d error code\n", ret);
+        goto cleanup;
+    }
+
+    // convert tx to hex
+    if ((ret = wally_tx_to_hex(tempTx, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &signedTx)) != 0) {
+        fprintf(stderr, "wally_tx_to_hex failed with %d error code\n", ret);
+    }
+
+cleanup:
+    clearThenFree(signatures, signatures_len);
+    clearThenFree(scriptWitness, scriptWitness_len);
+    free(sighash);
+    wally_tx_witness_stack_free(witness);
+    wally_tx_free(tempTx);
+
+    return signedTx;
 }
