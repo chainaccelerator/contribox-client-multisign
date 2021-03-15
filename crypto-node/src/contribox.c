@@ -69,17 +69,37 @@ char *encryptStringWithPubkey(const char *pubkey_hex, const char *toEncrypt, uns
 }
 
 int main(int ac, char **av) {
+    char            *command = NULL;
     char            *pubkey_hex = NULL;
     char            *toEncrypt = NULL;
     char            *cipher = NULL;
     unsigned char   ephemeralPrivkey[EC_PRIVATE_KEY_LEN];
     unsigned char   entropy[EC_PRIVATE_KEY_LEN];
+    size_t          encrypt = 0; // if 0, we're decrypting, if 1, we're encrypting
     size_t          written;
     int             ret = 1;
 
-    // check that we have 4 arguments
-    if (ac != 5) {
-       fprintf(stderr, "%s must take exactly 4 arguments.\n", av[0]);
+    // check what is the command 
+    command = strndup(av[1], strlen(av[1]));
+
+    if (!command) {
+        fprintf(stderr, "No command given.\n");
+        exit(1);
+    }
+
+    if (!(strncmp(command, ENCRYPT_COMMAND, sizeof(ENCRYPT_COMMAND)))) {
+        encrypt = 1;
+    } 
+    else if (!(strncmp(command, DECRYPT_COMMAND, sizeof(DECRYPT_COMMAND)))) {
+        encrypt = 0;
+    } else {
+        fprintf(stderr, "command must be either %s or %s\n", ENCRYPT_COMMAND, DECRYPT_COMMAND);
+        exit(1);
+    }
+
+    // check the number of arguments
+    if ((encrypt == 1) && (ac != 6)) {
+       fprintf(stderr, "%s must take exactly 5 arguments.\n", av[0]);
        exit(1); 
     }
 
@@ -89,7 +109,7 @@ int main(int ac, char **av) {
         exit(1);
     }
 
-    if ((ret = wally_hex_to_bytes(av[4], entropy, sizeof(entropy), &written)) != 0) {
+    if ((ret = wally_hex_to_bytes(av[5], entropy, sizeof(entropy), &written)) != 0) {
         fprintf(stderr, "wally_hex_to_bytes failed with %d error code\n", ret);
         exit(1);
     }
@@ -100,10 +120,10 @@ int main(int ac, char **av) {
     }
 
     // copy all arguments
-    pubkey_hex = strndup(av[1], strlen(av[1]));
-    toEncrypt = strndup(av[2], strlen(av[2]));
+    pubkey_hex = strndup(av[2], strlen(av[2]));
+    toEncrypt = strndup(av[3], strlen(av[3]));
 
-    if ((ret = wally_hex_to_bytes(av[3], ephemeralPrivkey, sizeof(ephemeralPrivkey), &written)) != 0) {
+    if ((ret = wally_hex_to_bytes(av[4], ephemeralPrivkey, sizeof(ephemeralPrivkey), &written)) != 0) {
         fprintf(stderr, "wally_hex_to_bytes failed with %d error code\n", ret);
         exit(1);
     }

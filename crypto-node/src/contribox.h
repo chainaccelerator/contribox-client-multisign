@@ -20,6 +20,9 @@
 
 #define MEMORY_ERROR "memory allocation error\n"
 
+#define ENCRYPT_COMMAND "encrypt"
+#define DECRYPT_COMMAND "decrypt"
+
 // util.c
 void            clearThenFree(void *p, size_t len);
 /** Fill an array of array_len size with random bytes
