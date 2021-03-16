@@ -23,6 +23,9 @@
 #define ENCRYPT_COMMAND "encrypt"
 #define DECRYPT_COMMAND "decrypt"
 
+#define ENCRYPT_ARGUMENTS 6
+#define DECRYPT_ARGUMENTS 6
+
 // util.c
 void            clearThenFree(void *p, size_t len);
 /** Fill an array of array_len size with random bytes
