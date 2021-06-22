@@ -201,6 +201,22 @@ function getP2pkhAddressFromPubkey(pubkey) {
   return JSON.stringify(addressInfo);
 }
 
+function getWitnessAddressFromScript(script) {
+  let legacy = 0;
+
+  // get the unconfidential address
+  if ((address_ptr = ccall('getAddressFromScript', 'number', ['string', 'number'], [script, legacy])) === 0) {
+    console.error("getaddressFromScript failed");
+    return "";
+  }
+
+  if ((address = convertToString(address_ptr, "address")) === "") {
+    return "";
+  }
+
+  return address;
+}
+
 function newAddressFromXpub(xpub, hdPath, range) {
   if ((pubkey_ptr = ccall('getPubkeyFromXpub', 'number', ['string', 'string', 'number'], [xpub, hdPath, range])) === 0) {
     console.error("getPubkeyFromXpub failed");

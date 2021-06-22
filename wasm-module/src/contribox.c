@@ -328,14 +328,7 @@ char *getAddressFromScript(const char *script_hex, const size_t legacy) {
 
     // convert script pubkey to bytes
     if (!(script = convertHexToBytes(script_hex, &script_len))) {
-        printf("convertHexToBytes failed\n");
-        return NULL;
-    }
-
-    // if legacy is true and the provided script is not a public key, we abort as we don't support P2SH yet
-    if (legacy && (script_len != EC_PUBLIC_KEY_LEN)) {
-        printf("P2SH is not supported\n");
-        clearThenFree(script, script_len);
+        fprintf(stderr, "convertHexToBytes failed\n");
         return NULL;
     }
 
@@ -632,8 +625,6 @@ char *createTransactionWithNewAsset(const char *prevTx_hex, const char *contract
     size_t          contractHash_len;
     int             ret = 1;
     size_t          written;
-
-    printf("assetAddress is %s\n", assetAddress);
 
     // convert hex prevTx to struct
     if ((ret = wally_tx_from_hex(prevTx_hex, WALLY_TX_FLAG_USE_ELEMENTS | WALLY_TX_FLAG_USE_WITNESS, &prevTx)) != 0) {
