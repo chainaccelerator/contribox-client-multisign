@@ -72,17 +72,29 @@ void    *reverseBytes(const unsigned char *bytes, const size_t bytes_len) {
 }
 
 unsigned char *convertHexToBytes(const char *hexstring, size_t *bytes_len) {
-    unsigned char *bytes;
-    int ret;
-    size_t written;
+    unsigned char   *bytes = NULL; 
+    char            *toConvert = NULL;
+    int             ret;
+    size_t          written;
 
-    *bytes_len = strlen(hexstring) / 2;
+    // if we passed 0 as expected length, it means we just need the hexstring as is
+    if (*bytes_len == 0)
+        *bytes_len = strlen(hexstring) / 2;
+    // else it means we need a substring
+    else if ((strlen(hexstring)) < (*bytes_len * 2)) {
+        fprintf(stderr, "bytes_len must be at least half of hexstring\n");
+        fprintf(stderr, "bytes_len is %zu, hexstring %zu\n", *bytes_len, strlen(hexstring));
+    }
+
+    // we just copy whatever is needed
+    toConvert = strndup(hexstring, *bytes_len * 2);
+
     if (!(bytes = malloc(*bytes_len))) {
         fprintf(stderr, MEMORY_ERROR);
         return NULL;
     }
 
-    if ((ret = wally_hex_to_bytes(hexstring, bytes, *bytes_len, &written)) != 0) {
+    if ((ret = wally_hex_to_bytes(toConvert, bytes, *bytes_len, &written)) != 0) {
         fprintf(stderr, "wally_hex_to_bytes failed with %d error code\n", ret);
         free(bytes);
         return NULL;
@@ -213,7 +225,7 @@ unsigned char    *parseSignaturesList(const char *signatures_list, size_t *signa
     char            *der = NULL;
     int             ret = 1;
     size_t          counter = 0;
-    size_t          written;
+    size_t          written = 0;
 
     if (!signatures_list) {
         fprintf(stderr, "Empty string to parseSignaturesList\n");
@@ -302,4 +314,38 @@ struct ext_key *getChildFromXpub(const char *xpub, const uint32_t *hdPath, const
     bip32_key_free(hdKey);
 
     return child;
+}
+
+int         countChar(const char *str, const char c) {
+    int res = 0;
+
+    while (*str) {
+        if (*str == c)
+            res++;
+        str++;
+    }
+
+    return res;
+}
+
+char        *substrToChar(const char *str, const char c) {
+    char    *res = NULL;
+    int     i = 0;
+
+    if (!str || (countChar(str, c) == 0))
+        return NULL;
+
+    for (i; str[i] && (str[i] != c); i++)
+        continue;
+
+    i++;
+    
+    if (!(res = calloc(i, sizeof(*res)))) 
+        fprintf(stderr, MEMORY_ERROR);
+    
+    if (res) {
+        strlcpy(res, str, i);
+    }
+
+    return res;
 }

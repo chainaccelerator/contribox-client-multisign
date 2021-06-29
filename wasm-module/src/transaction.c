@@ -1,16 +1,21 @@
 #include "contribox.h"
 
-int addOutputToTx(struct wally_tx *tx, const char *address, const size_t isP2WSH, const size_t amount, const unsigned char *asset) {
+int addOutputToTx(struct wally_tx *tx, const char *address, const size_t amount, const unsigned char *asset) {
     unsigned char *scriptPubkey;
     size_t scriptPubkey_len;
     unsigned char value[WALLY_TX_ASSET_CT_VALUE_UNBLIND_LEN];
     size_t written;
     int ret = 1;
 
-    if (isP2WSH) {
+    if (strlen(address) == 63) {
+        printf("address is P2WSH\n");
         scriptPubkey_len = WALLY_SCRIPTPUBKEY_P2WSH_LEN;
-    } else {
+    } else if (strlen(address) == 43) {
+        printf("address is P2WPKH\n");
         scriptPubkey_len = WALLY_SCRIPTPUBKEY_P2WPKH_LEN;
+    } else {
+        fprintf(stderr, "Address is %zu characters long. Must be either 43 or 63\n", strlen(address));
+        goto cleanup;
     }
 
     if (!(scriptPubkey = calloc(scriptPubkey_len, sizeof(*scriptPubkey)))) {

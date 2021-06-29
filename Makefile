@@ -27,7 +27,7 @@ minsc-bin:
 minsc: 
 	docker build -f wasm-module/docker/minsc.dockerfile --build-arg=MINSC_VERSION=$(MINSC_VERSION) . -t minsc-wasm:${MINSC_VERSION}
 
-start:
+start: build
 	docker run --rm -p 8000:8000 libwally-wasm:${LIBWALLY_VERSION}
 
 clean:

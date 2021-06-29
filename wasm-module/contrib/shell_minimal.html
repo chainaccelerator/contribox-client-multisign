@@ -56,21 +56,112 @@
       // console.log("address is " + mineAddress.unconfidentialAddress);
       console.log("pubkey is " + mineAddress.pubkey)
 
-      var path = "1/0";
-      theirAddress = JSON.parse(newAddressFromXpub(restored.xpub, path, 0));
+      var path = "c8c0091a55738d9594cedc26f7f07832753ef0ceb1d4ec8092d101c90fb92e06";
+      theirAddress = JSON.parse(newAddressFromXpub(restored.xpub, path, 2));
       // console.log("address is " + theirAddress.unconfidentialAddress);
       console.log("pubkey is " + theirAddress.pubkey)
 
-      var script = "52210235e3fd3a73d81528e7ceb358a70bd6449af024d4c095741491daad907d5ca8d321023125a6fe86eb8f1428cd08330f4831e0e20d3f7ca4f3759e09774be2f124d4a652ae";
+      var path = "2/0";
+      multisigAddress1 = JSON.parse(newAddressFromXpub(restored.xpub, path, 0));
+      // console.log("address is " + theirAddress.unconfidentialAddress);
+      console.log("pubkey is " + multisigAddress1.pubkey)
+
+      var path = "3/0";
+      multisigAddress2 = JSON.parse(newAddressFromXpub(restored.xpub, path, 0));
+      // console.log("address is " + theirAddress.unconfidentialAddress);
+      console.log("pubkey is " + multisigAddress2.pubkey)
+
+      var script = "5221" + multisigAddress1.pubkey + "21" + multisigAddress2.pubkey + "52ae";
+      console.log("multisig script is " + script);
       multisig = getWitnessAddressFromScript(script);
       console.log("multisig address is " + multisig);
 
       // create a new tx that spend prevTx
-      unblindedPrevTx = "0200000001014951b077c48f28a4321bc283a77c2ee5dd50ebfd9457330c34dc3c4fcae8b00f0100000000ffffffff0301230f4f5d4b7c6fa845806ee4f67713459e1b69e8e60fcee2e4940c7a0d5de1b20100000000000003e80016001455450f596ae6065960ed733a34473f21e0acf85001230f4f5d4b7c6fa845806ee4f67713459e1b69e8e60fcee2e4940c7a0d5de1b20100000000127a3396001600142453edffa30a4dc4e45783d5fb2e065475bcba4f01230f4f5d4b7c6fa845806ee4f67713459e1b69e8e60fcee2e4940c7a0d5de1b201000000000000020200000000000000000247304402205f3af25620dc5202020d779946df0d42415b41a4a222993f85194bfff2e0bb4402204a738877d00eea66d3f8b0c5cbc1a09e92cf8b4d4504121344dacb84aace050d0121023a0665776a8cb54b5b2ad524ea8c322a3681ad200ec634ac28565b02ab16adbf00000000000000";
-      contract_hash = "e803ba4ff3b8ad4e85d2415f93937ef90d20f5c55bebd641c02a045ba604f8a4";
-      newTx = createIssueAssetTx(unblindedPrevTx, contract_hash, multisig, mineAddress.unconfidentialAddress);
+      var unblindedPrevTx = "0200000001014951b077c48f28a4321bc283a77c2ee5dd50ebfd9457330c34dc3c4fcae8b00f0100000000ffffffff0301230f4f5d4b7c6fa845806ee4f67713459e1b69e8e60fcee2e4940c7a0d5de1b20100000000000003e80016001455450f596ae6065960ed733a34473f21e0acf85001230f4f5d4b7c6fa845806ee4f67713459e1b69e8e60fcee2e4940c7a0d5de1b20100000000127a3396001600142453edffa30a4dc4e45783d5fb2e065475bcba4f01230f4f5d4b7c6fa845806ee4f67713459e1b69e8e60fcee2e4940c7a0d5de1b201000000000000020200000000000000000247304402205f3af25620dc5202020d779946df0d42415b41a4a222993f85194bfff2e0bb4402204a738877d00eea66d3f8b0c5cbc1a09e92cf8b4d4504121344dacb84aace050d0121023a0665776a8cb54b5b2ad524ea8c322a3681ad200ec634ac28565b02ab16adbf00000000000000";
 
-      console.log(newTx);
+      let vout = 1;
+      let amountSpent = 0;
+      let getInfoFromPrevTx = new Promise((resolve, reject)=> {
+        var inputs = [];
+        inputs[0] = extractOutputFromPrevTx(unblindedPrevTx, vout);
+        resolve(inputs);
+      })
+      getInfoFromPrevTx
+        .then(inputs=> {
+        inputs.forEach((value)=> {
+          amountSpent += value.amount;
+        })
+
+        let rewardAmt = 10000;
+        let targetAmt = 10000;
+        let changeAmt = amountSpent - rewardAmt - targetAmt;
+
+        let change = {
+          "address": multisig,
+          "amount": changeAmt,
+          "asset": inputs[0].asset
+        }
+        let reward = {
+          "address": theirAddress.unconfidentialAddress,
+          "amount": rewardAmt,
+          "asset": inputs[0].asset
+        }
+        let target = {
+          "address": mineAddress.unconfidentialAddress,
+          "amount": targetAmt,
+          "asset": inputs[0].asset
+        }
+        var outputs = [target, reward, change];
+        console.log(outputs);
+
+        newTx0 = createNewTx(inputs, outputs);
+        console.log("First Tx is " + newTx0);
+
+        let address = "ert1q24zs7kt2ucr9jc8dwvarg3ely8s2e7zsz3gkvs"; // address found in the UTXO we're spending
+        return signedTx0 = signSingleSigTx(newTx0, address, restored.xprv, "42/0", 0);
+        })
+        .then(signedTx0=> {
+          console.log("signedTx0 " + signedTx0);
+          vout = 2;
+          var inputs = [];
+          inputs[0] = extractOutputFromPrevTx(signedTx0, vout);
+
+          return inputs;
+        })
+        .then(inputs=> {
+          console.log(inputs);
+          inputs.forEach((value)=> {
+            amountSpent += value.amount;
+          })
+
+          targetAmt = amountSpent;
+
+          target = {
+            "address": mineAddress.unconfidentialAddress,
+            "amount": targetAmt,
+            "asset": inputs[0].asset
+          }
+          outputs = [target];
+
+          newTx1 = createNewTx(inputs, outputs);
+          console.log("First Tx is " + newTx1);
+
+          // sign the multisig input
+          signature1 = signMultisigTx(newTx1, multisigAddress1.pubkey, script, restored.xprv, "2/0", 0);
+          console.log("signature1 is " + signature1);
+          signature2 = signMultisigTx(newTx1, multisigAddress2.pubkey, script, restored.xprv, "3/0", 0);
+          console.log("signature2 is " + signature2);
+
+          signatures = signature1 + ' ' + signature2;
+
+          // put the signature together to create a fully signed transaction
+          signedMultiTx = combineSignaturesInTx(newTx1, signatures, script);
+          console.log("signed multisig tx is " + signedMultiTx);
+
+        })
+
+      // newTx = createIssueAssetTx(unblindedPrevTx, contract_hash, multisig, mineAddress.unconfidentialAddress);
+
 
       // sign the tx
       /*  we need to pass:
@@ -78,34 +169,14 @@
       **  - the address from the previous tx we're spending, so that we know which privkey we're looking for
       **  - the derivation path, which is not necessarily the exact path, we'll look up to 100 pubkeys from the given path
       **  - the encrypted wallet and password to retrieve the master private key 
-      **/
-      // let address = "ert1qnzarlexyngnepn8jsksl899yefsv4c6evzkjen4fevjgww46rtusln52pj"; // P2WSH address to be sure that it fails
-      let address = "ert1q24zs7kt2ucr9jc8dwvarg3ely8s2e7zsz3gkvs";
+      * */
       // let address = "ert1qmz4vuj0y7vc36rm630d9yfx27ppkg06smtljyq";
-      signedTx = signIssueAssetTx(newTx, address, restored.xprv, "42/0", 0);
-
-      console.log(signedTx);
 
       // create another tx that spend the multisig
-      releaseAddress = "ert1qrw4q5s4sa6ugc53yx4fjhh7hjru6ggvf3agt3k";
-      newTx = createReleaseAssetTx(signedTx, releaseAddress);
 
-      console.log(newTx);
-
-      // sign the multisig input
-      signature1 = signReleaseTx(newTx, mineAddress.pubkey, script, restored.xprv, "0/0", 0);
-      console.log("signature1 is " + signature1);
-      signature2 = signReleaseTx(newTx, theirAddress.pubkey, script, restored.xprv, "1/0", 0);
-      console.log("signature2 is " + signature2);
-
-      signatures = signature1 + ' ' + signature2;
-
-      // put the signature together to create a fully signed transaction
-      signedMultiTx = combineSignaturesInTx(newTx, signatures, script);
-      console.log("signed multisig tx is " + signedMultiTx);
 
       // sign an arbitrary hash with a key derived from our xprv
-      stringToEncrypt = "It is notable that the response to each public tragedy or threat in modern America seems to involve a call for citizens to surrender more of their rights.";
+/*       stringToEncrypt = "It is notable that the response to each public tragedy or threat in modern America seems to involve a call for citizens to surrender more of their rights.";
       signature = signHash(restored.xprv, "0/0", 0, stringToEncrypt);
 
       console.log(signature);
@@ -149,7 +220,7 @@
 
         var clearMessage = decryptMessage(encryptedMessage, xprv, path, range, pubkey, senderPubkey);
         console.log("clear message is " + clearMessage);
-      }
+      }*/
 
       // cleanup when we're over
       cleanUp();

@@ -243,6 +243,84 @@ function newAddressFromXprv(xprv, hdPath, range) {
   return getWitnessAddressFromPubkey(pubkey);
 }
 
+function extractOutputFromPrevTx(previousTx, vout) {
+  // get the txid
+  if ((txid_ptr = ccall('getTxId', 'number', ['string'], [previousTx])) === 0) {
+    console.error("getTxId failed");
+    return "";
+  }
+
+  if ((txid = convertToString(txid_ptr, "txid")) === "") {
+    return "";
+  }
+
+  // get the amount
+  if ((amt = ccall('getAmountFromOutput', 'number', ['string', 'number', 'number'], [previousTx, vout, 0])) === 0) {
+    console.error("getAmountFromOutput failed");
+    return "";
+  }
+
+  // get the asset
+  if ((asset_ptr = ccall('getAssetFromOutput', 'number', ['string', 'number', 'number'], [previousTx, vout, 0])) === 0) {
+    console.error("getAssetFromOutput failed");
+    return "";
+  }
+
+  if ((asset = convertToString(asset_ptr, "asset")) === "") {
+    return "";
+  }
+
+  // get the scriptPubkey
+  if ((scriptPubkey_ptr = ccall('getScriptPubkeyFromOutput', 'number', ['string', 'number'], [previousTx, vout])) === 0) {
+    console.error("getScriptPubkeyFromOutput failed");
+    return "";
+  }
+
+  if ((scriptPubkey = convertToString(scriptPubkey_ptr, "scriptPubkey")) === "") {
+    return "";
+  }
+
+  let OutputInfo = {
+    "txid": txid,
+    "vout": vout,
+    "amount": amt,
+    "asset": asset,
+    "scriptPubkey": scriptPubkey
+  }
+
+  return OutputInfo;
+}
+
+function createNewTx(inputs, outputs) {
+  // parse the inputs list and make 2 strings with txids and vouts
+  let vin_str = "";
+  let assets_str = "";
+  inputs.forEach((input)=> {
+    vin_str += input.txid + ":" + input.vout + " ";
+  })
+
+  // parse the outputs list and makes 2 strings, 1 for addresses and 1 for amount
+  let addresses_str = "";
+  let amounts_str = "";
+  outputs.forEach((output)=> {
+    addresses_str += output.address + " ";
+    amounts_str += output.amount + " ";
+    assets_str += output.asset + " ";
+  })
+
+  if ((newTx_ptr = ccall('createTransaction', 'number', ['string', 'string', 'string', 'string'], [vin_str, addresses_str, amounts_str, assets_str])) === 0) {
+    console.error("createTransaction failed");
+    return "";
+  }
+
+  if ((newTx = convertToString(newTx_ptr, "newTx")) === "") {
+    return "";
+  }
+
+  return newTx;
+
+}
+
 function createIssueAssetTx(previousTx, contractHash, assetAddress, changeAddress) {
   if ((newTx_ptr = ccall('createTransactionWithNewAsset', 'number', ['string', 'string', 'string', 'string'], [previousTx, contractHash, assetAddress, changeAddress])) === 0) {
     console.error("createTransactionWithNewAsset failed");
@@ -269,7 +347,7 @@ function createReleaseAssetTx(previousTx, address) {
   return newTx;
 }
 
-function signIssueAssetTx(unsignedTx, address, xprv, hdPath, range) {
+function signSingleSigTx(unsignedTx, address, xprv, hdPath, range) {
   let signedTx_ptr;
   let signedTx;
   let signingKey_ptr;
@@ -298,7 +376,7 @@ function signIssueAssetTx(unsignedTx, address, xprv, hdPath, range) {
   return signedTx;
 }
 
-function signReleaseTx(unsignedTx, pubkey, script, xprv, hdPath, range) {
+function signMultisigTx(unsignedTx, pubkey, script, xprv, hdPath, range) {
   /** contrary to signIssueAssetTx, we don't return the signed Tx, but the DER encoded signature.
    * We'll need another step to put together all the signatures in a witness.
   **/

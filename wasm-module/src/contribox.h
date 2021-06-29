@@ -37,6 +37,11 @@
 #define INPUT_DEACTIVATE_SEQUENCE (uint32_t)0xffffffff
 
 #define KEY_SEARCH_DEPTH (size_t)20
+#define DERIVATION_INDEX_LENGTH (size_t)4
+
+#define MAX32B (size_t)2147483647
+
+#define TAG_ENCRYPTION "Chainacc" // This is used as salt in pbkdf 
 
 #define MEMORY_ERROR "memory allocation error\n"
 
@@ -90,6 +95,9 @@ unsigned char   *parseSignaturesList(const char *signatures_list, size_t *signat
 struct ext_key  *getChildFromXprv(const char *xprv, const uint32_t *hdPath, const size_t path_len);
 struct ext_key  *getChildFromXpub(const char *xpub, const uint32_t *hdPath, const size_t path_len);
 
+int             countChar(const char *str, const char c);
+char            *substrToChar(const char *str, const char c);
+
 // script.c
 unsigned char   *getWitnessProgram(const unsigned char *script, const size_t script_len, int *isP2WSH);
 char            *getSegwitAddressFromScript(const unsigned char *script, const size_t script_len);
@@ -100,7 +108,7 @@ int getNewAssetID(const unsigned char *txID, const uint32_t vout, const unsigned
 int addIssuanceInput(struct wally_tx *newTx, struct txInfo *initialInput, const unsigned char *contractHash);
 
 // transaction.c
-int addOutputToTx(struct wally_tx *tx, const char *address, const size_t isP2WSH, const size_t amount, const unsigned char *asset);
+int addOutputToTx(struct wally_tx *tx, const char *address, const size_t amount, const unsigned char *asset);
 int addIssuanceInputToTx(struct wally_tx *tx, const unsigned char *prevTxID, const unsigned char *contractHash);
 int addInputToTx(struct wally_tx *tx, const unsigned char *prevTxID);
 
