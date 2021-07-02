@@ -265,12 +265,14 @@ unsigned char    *parseSignaturesList(const char *signatures_list, size_t *signa
         buffer = convertHexToBytes(der, &written);
         if ((ret = wally_ec_sig_from_der(buffer, written - 1, compactSignature, sizeof(compactSignature)))) {
             fprintf(stderr, "wally_ec_sig_from_der failed with %d error code\n", ret);
+            signatures = clearThenFree(signatures, *signatures_len);
             goto cleanup;
         }
         memcpy(signatures + (counter * sizeof(compactSignature)), compactSignature, sizeof(compactSignature));
 
         clearThenFree(buffer, written);
         clearThenFree(der, strlen(der));
+        written = 0;
         counter++;
     }
 
