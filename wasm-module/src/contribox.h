@@ -63,7 +63,7 @@ struct txInfo {
 };
 
 // util.c
-void            clearThenFree(void *p, size_t len);
+void            *clearThenFree(void *p, size_t len);
 void            freeTxInfo(struct txInfo **initialInput);
 struct txInfo   *initTxInfo();
 

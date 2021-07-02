@@ -1,11 +1,13 @@
 #include "contribox.h"
 
-void    clearThenFree(void *p, size_t len) {
+void    *clearThenFree(void *p, size_t len) {
     if (p) {
         memset(p, '\0', len);
         free(p);
         p = NULL;
     }
+
+    return p;
 }
 
 void    freeTxInfo(struct txInfo **initialInput) {
