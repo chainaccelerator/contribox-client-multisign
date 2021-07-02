@@ -71,7 +71,21 @@
       // console.log("address is " + theirAddress.unconfidentialAddress);
       console.log("pubkey is " + multisigAddress2.pubkey)
 
-      var script = "5221" + multisigAddress1.pubkey + "21" + multisigAddress2.pubkey + "52ae";
+      var path = "4/0";
+      multisigAddress3 = JSON.parse(newAddressFromXpub(restored.xpub, path, 0));
+      // console.log("address is " + theirAddress.unconfidentialAddress);
+      console.log("pubkey is " + multisigAddress3.pubkey)
+
+      var path = "5/0";
+      multisigAddress4 = JSON.parse(newAddressFromXpub(restored.xpub, path, 0));
+      // console.log("address is " + theirAddress.unconfidentialAddress);
+      console.log("pubkey is " + multisigAddress4.pubkey)
+
+      // var script = "5221" + multisigAddress1.pubkey + "21" + multisigAddress2.pubkey + "52ae";
+      // let pubkeys = [multisigAddress1.pubkey, multisigAddress2.pubkey];
+      let pubkeys = [multisigAddress1.pubkey, multisigAddress2.pubkey, multisigAddress3.pubkey, multisigAddress4.pubkey];
+      let threshold = 2;
+      var script = getMultisigScriptFromPubkeys(pubkeys, threshold);
       console.log("multisig script is " + script);
       multisig = getWitnessAddressFromScript(script);
       console.log("multisig address is " + multisig);

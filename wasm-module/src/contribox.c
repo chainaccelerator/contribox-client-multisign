@@ -319,6 +319,68 @@ char    *encryptStringWithPassword(const char *userPassword, const char *toEncry
 }
 
 EMSCRIPTEN_KEEPALIVE
+char    *getMultisigScriptPubkeyFromPubkeys(const char *pubkeys_hex, const size_t pubkeys_nb, const size_t threshold) {
+    unsigned char   *pubkeys = NULL;
+    unsigned char   *scriptPubkey = NULL;
+    char            *scriptPubkey_hex = NULL;
+    size_t          script_len = 0;
+    size_t          written = 0;
+    int             ret = 0;
+
+    printf("pubkeys_hex is %s\n", pubkeys_hex);
+    if (strlen(pubkeys_hex)/(EC_PUBLIC_KEY_LEN*2) != pubkeys_nb) {
+        fprintf(stderr, "pubkeys_hex string is %zu long, pubkeys_nb is %zu\n", strlen(pubkeys_hex), pubkeys_nb);
+        goto cleanup;
+    }
+
+    if ((pubkeys_nb < threshold) || (threshold < 1)) {
+        fprintf(stderr, "number of pubkeys %zu and/or threshold %zu is unconsistent\n", pubkeys_nb, threshold);
+        goto cleanup;
+    }
+
+    if (!(pubkeys = calloc(pubkeys_nb*EC_PUBLIC_KEY_LEN, sizeof(*pubkeys)))) {
+        fprintf(stderr, MEMORY_ERROR);
+        goto cleanup;
+    }
+
+    script_len = 3 + (pubkeys_nb * (EC_PUBLIC_KEY_LEN + 1));
+
+    printf("script_len is %zu\n", script_len);
+
+    if (!(scriptPubkey = calloc(script_len, sizeof(*scriptPubkey)))) {
+        fprintf(stderr, MEMORY_ERROR);
+        goto cleanup;
+    }
+
+    if ((ret = wally_hex_to_bytes(pubkeys_hex, pubkeys, pubkeys_nb*EC_PUBLIC_KEY_LEN, &written)) != 0) {
+        fprintf(stderr, "wally_hex_to_bytes failed with %d\n", ret);
+        goto cleanup;
+    }
+
+    if ((ret = wally_scriptpubkey_multisig_from_bytes(
+                                                pubkeys, pubkeys_nb*EC_PUBLIC_KEY_LEN,
+                                                threshold,
+                                                0,
+                                                scriptPubkey, script_len,
+                                                &written)
+            ) != 0) {
+        fprintf(stderr, "wally_scriptpubkey_multisig_from_bytes failed with %d\n", ret);
+        goto cleanup;
+    }
+
+    if ((ret = wally_hex_from_bytes(scriptPubkey, script_len, &scriptPubkey_hex)) != 0) {
+        printf("wally_hex_from_bytes failed with %d error code\n", ret);
+        goto cleanup;
+    }
+
+cleanup:
+    clearThenFree(scriptPubkey, script_len);
+    clearThenFree(pubkeys, pubkeys_nb*EC_PUBLIC_KEY_LEN);
+
+    return scriptPubkey_hex;
+}
+
+EMSCRIPTEN_KEEPALIVE
 char *getAddressFromScript(const char *script_hex, const size_t legacy) {
     unsigned char   *script = NULL;
     unsigned char   pubkey[EC_PUBLIC_KEY_LEN];

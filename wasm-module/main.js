@@ -160,6 +160,32 @@ function restoreWallet(mnemonic) {
   return generateWallet(mnemonic);
 }
 
+function getMultisigScriptFromPubkeys(pubkeys, threshold) {
+  let pubkeys_str = "";
+
+  if (pubkeys.length < threshold || threshold < 1) {
+    console.error("threshold is " + threshold + ", must be between 1 and " + pubkeys.length);
+    return "";
+  }
+
+  pubkeys.forEach((pubkey)=> {
+    pubkeys_str += pubkey;
+  })
+
+  console.log("pubkeys_str is " + pubkeys_str);
+
+  if ((script_ptr = ccall('getMultisigScriptPubkeyFromPubkeys', 'number', ['string', 'number', 'number'], [pubkeys_str, pubkeys.length, threshold])) === 0) {
+    console.error("getMultisigScriptPubkeyFromPubkeys failed");
+    return "";
+  }
+
+  if ((script = convertToString(script_ptr, "script")) === "") {
+    return "";
+  }
+
+  return script;
+}
+
 function getWitnessAddressFromPubkey(pubkey) {
   let legacy = 0;
   // get the unconfidential address
