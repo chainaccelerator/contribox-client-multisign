@@ -1,4 +1,5 @@
-const PASSPHRASE = "";
+const PASSPHRASE = ""; // this is an optional password used for wallet generation
+const TAG = "chainacc"; // this is an application-defined tag we can define in complement of a user-defined password to encrypt data
 
 function hexStringToByte(str) {
   if (!str) {

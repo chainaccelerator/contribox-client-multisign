@@ -158,7 +158,7 @@ char    *pubkeyFromPrivkey(const char *privkey_hex) {
 }
 
 EMSCRIPTEN_KEEPALIVE
-char *decryptStringWithPassword(const char *encryptedString, const char *userPassword) {
+char *decryptStringWithPassword(const char *encryptedString, const char *userPassword, const char *tag) {
     unsigned char   key[PBKDF2_HMAC_SHA256_LEN];
     char            *clearMessage = NULL;
     int             ret;
@@ -167,8 +167,8 @@ char *decryptStringWithPassword(const char *encryptedString, const char *userPas
     if ((ret = wally_pbkdf2_hmac_sha256(
                             (unsigned char*)userPassword, 
                             strlen(userPassword), 
-                            NULL, 
-                            (size_t)0,
+                            (unsigned char *)tag, 
+                            strlen(tag),
                             0,
                             16384,
                             key, 
@@ -281,7 +281,7 @@ char *encryptStringWithPubkey(const char *pubkey_hex, const char *toEncrypt, uns
 }
 
 EMSCRIPTEN_KEEPALIVE
-char    *encryptStringWithPassword(const char *userPassword, const char *toEncrypt) {
+char    *encryptStringWithPassword(const char *userPassword, const char *toEncrypt, const char *tag) {
     unsigned char   key[PBKDF2_HMAC_SHA256_LEN];
     unsigned char   *cipher = NULL;
     char            *encryptedFile = NULL;
@@ -292,15 +292,15 @@ char    *encryptStringWithPassword(const char *userPassword, const char *toEncry
     if ((ret = wally_pbkdf2_hmac_sha256(
                             (unsigned char*)userPassword, 
                             strlen(userPassword), 
-                            NULL, 
-                            (size_t)0,
+                            (unsigned char *)tag, 
+                            strlen(tag),
                             0,
                             16384,
                             key, 
                             PBKDF2_HMAC_SHA256_LEN)) != 0) {
         fprintf(stderr, "wally_pbkdf2_hmac_sha256 failed with %d\n", ret);
         return NULL;
-    };
+    }
 
     if ((cipher = encryptWithAes(toEncrypt, key, &cipher_len)) == NULL) {
         fprintf(stderr, "encryptWithAes failed\n");
